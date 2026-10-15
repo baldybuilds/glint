@@ -20,6 +20,9 @@ BuildRequires:  gtk4
 BuildRequires:  libadwaita
 BuildRequires:  gstreamer1-plugins-base
 BuildRequires:  pango
+# Text-rendering tests need real fonts in minimal build roots (mock/Copr).
+BuildRequires:  dejavu-sans-fonts
+BuildRequires:  dejavu-sans-mono-fonts
 
 Requires:       python3
 Requires:       python3-gobject >= 3.50
