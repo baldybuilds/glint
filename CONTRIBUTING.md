@@ -141,6 +141,17 @@ tested by hand and on which desktop.
 Commit messages: a short imperative summary line ("Fix loupe on HiDPI
 monitors"), then a blank line and any detail.
 
+## Releasing (maintainers)
+
+1. Bump `VERSION` in `glint/__init__.py` and the fallback `glint_version` in `packaging/glint.spec`.
+2. Add a `<release>` entry to `data/app.glint.Glint.metainfo.xml` and a `%changelog` entry to the spec.
+3. Add the version's section to `CHANGELOG.md`; it becomes the release notes.
+4. Commit, then tag and push:
+   ```sh
+   git tag v0.3.0 && git push origin main v0.3.0
+   ```
+   The **Release** workflow builds the RPM in Fedora, runs the tests and publishes the GitHub Release with the RPMs and `SHA256SUMS` attached. It refuses to publish if the tag doesn't match `VERSION`.
+
 ## Be kind
 
 Be respectful and constructive, and assume good intent. Everyone here is

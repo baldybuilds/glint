@@ -15,6 +15,7 @@ A CleanShot X–inspired screenshot and screen‑recording tool for Fedora and K
 [![Python](https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white)](#%EF%B8%8F-development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22C55E)](LICENSE)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-F97316)](#-what-to-expect)
+[![Latest release](https://img.shields.io/github/v/release/baldybuilds/glint?include_prereleases&logo=github&label=release)](https://github.com/baldybuilds/glint/releases/latest)
 [![GitHub stars](https://img.shields.io/github/stars/baldybuilds/glint?style=flat&logo=github)](https://github.com/baldybuilds/glint/stargazers)
 
 [Features](#-features) · [Install](#-installation) · [Usage](#-usage) · [Shortcuts](#%EF%B8%8F-keyboard-shortcuts) · [Troubleshooting](#-troubleshooting) · [Development](#%EF%B8%8F-development) · [Contributing](CONTRIBUTING.md)
@@ -125,9 +126,17 @@ Glint is an **early alpha** built for and tested on **Fedora 45 with KDE Plasma 
 
 ## 📦 Installation
 
-### Option 1 — RPM package *(recommended)*
+### Option 1 — Download the RPM *(easiest)*
 
-Builds a native Fedora package that installs system-wide, shows up in the app menu and Discover, and pulls in its dependencies.
+Grab **`glint-<version>.noarch.rpm`** from the [latest release](https://github.com/baldybuilds/glint/releases/latest), then:
+
+```sh
+sudo dnf install ./glint-*.noarch.rpm
+```
+
+It installs system-wide, shows up in the app menu and Discover, and pulls in its dependencies. To upgrade, download the newer RPM and run the same command.
+
+### Option 2 — Build the RPM yourself
 
 ```sh
 git clone https://github.com/baldybuilds/glint.git
@@ -138,7 +147,7 @@ sudo dnf install packaging/rpmbuild/RPMS/noarch/glint-*.noarch.rpm
 
 Building needs `rpm-build`, `desktop-file-utils` and `appstream` (`sudo dnf install rpm-build desktop-file-utils appstream`). To upgrade, pull, rebuild and run the same `dnf install` again.
 
-### Option 2 — Per-user install *(no root)*
+### Option 3 — Per-user install *(no root)*
 
 ```sh
 git clone https://github.com/baldybuilds/glint.git
@@ -148,7 +157,7 @@ cd glint
 
 Don't mix the two: a `~/.local` install shadows the RPM. Remove it with `./install.sh --uninstall` first.
 
-### Option 3 — Run from the source tree
+### Option 4 — Run from the source tree
 
 ```sh
 ./bin/glint --background
@@ -359,6 +368,7 @@ GLINT_DEBUG=1 glint --background
 /usr/bin/python3 -m unittest discover -s tests -t .              # unit tests (no display needed)
 GLINT_DEBUG=1 GLINT_NO_SHORTCUTS=1 ./bin/glint --background       # run from the tree
 packaging/build-rpm.sh                                            # build the RPM (also runs the tests)
+git tag v0.3.0 && git push --tags                                 # release: CI builds and publishes the RPMs
 ```
 
 Use the **system** interpreter (`/usr/bin/python3`): PyGObject, GTK and GStreamer bindings come from Fedora packages. `GLINT_NO_SHORTCUTS=1` skips shortcut registration and the first-run prompt, which is useful while hacking.
@@ -389,7 +399,8 @@ tests/                unit tests
 
 ## 🗺️ Roadmap
 
-- [ ] Copr repository for one-line installs and updates
+- [x] GitHub Releases with ready-to-install RPMs
+- [ ] Copr repository for one-line installs and automatic updates
 - [ ] Verified GNOME support
 - [ ] Keystroke overlay for recordings
 - [ ] Cloud / custom-server upload

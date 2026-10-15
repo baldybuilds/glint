@@ -1,0 +1,62 @@
+# Push a tag like v0.2.0 and this builds the RPM in Fedora, runs the tests and
+# publishes a GitHub Release with the packages attached. It can also be run by
+# hand from the Actions tab: that builds and uploads the RPMs as a workflow
+# artifact without publishing a release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rpm:
+    name: Build RPM and publish release
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:45
+    steps:
+      - name: Install build dependencies
+        run: >
+          dnf -y install git rpm-build desktop-file-utils appstream
+          python3-gobject python3-cairo gtk4 libadwaita gstreamer1-plugins-base pango
+          dejavu-sans-fonts dejavu-sans-mono-fonts
+
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches glint/__init__.py
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' glint/__init__.py)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match VERSION $version"
+            exit 1
+          fi
+
+      - name: Build RPM (runs the test suite)
+        run: packaging/build-rpm.sh
+
+      - name: Collect packages and release notes
+        run: |
+          mkdir dist
+          cp packaging/rpmbuild/RPMS/noarch/*.rpm packaging/rpmbuild/SRPMS/*.rpm dist/
+          (cd dist && sha256sum -- *.rpm > SHA256SUMS)
+          version=$(sed -n 's/^VERSION = "\(.*\)"$/\1/p' glint/__init__.py)
+          rpm=$(basename dist/glint-*.noarch.rpm)
+          packaging/release-notes.sh "$version" "$rpm" > release-notes.md
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: glint-rpms
+          path: dist/
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Glint ${{ github.ref_name }}
+          body_path: release-notes.md
+          files: dist/*
