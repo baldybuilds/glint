@@ -20,6 +20,12 @@ BuildRequires:  gtk4
 BuildRequires:  libadwaita
 BuildRequires:  gstreamer1-plugins-base
 BuildRequires:  pango
+BuildRequires:  glib2
+BuildRequires:  gdk-pixbuf2
+BuildRequires:  graphene
+# Ships the cairo-1.0 typelib (only a weak dependency elsewhere, so minimal
+# build roots like Copr's mock don't get it otherwise).
+BuildRequires:  gobject-introspection
 # Text-rendering tests need real fonts in minimal build roots (mock/Copr).
 BuildRequires:  dejavu-sans-fonts
 BuildRequires:  dejavu-sans-mono-fonts
@@ -31,6 +37,9 @@ Requires:       gtk4 >= 4.14
 Requires:       libadwaita >= 1.5
 Requires:       graphene
 Requires:       pango
+Requires:       glib2
+Requires:       gdk-pixbuf2
+Requires:       gobject-introspection
 Requires:       gstreamer1
 Requires:       gstreamer1-plugins-base
 Requires:       gstreamer1-plugins-good
