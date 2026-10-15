@@ -2,7 +2,7 @@
 
 APP_ID = "app.glint.Glint"
 APP_NAME = "Glint"
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 URL_SCHEME = "glint"
 
 

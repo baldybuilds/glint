@@ -20,6 +20,15 @@ class TrimHelperTests(unittest.TestCase):
         self.assertEqual(trimmer.adjust_range(2, 8, "end", 99, 10), (2, 10))
         self.assertEqual(trimmer.adjust_range(2, 8, "start", -5, 10), (0, 8))
 
+    def test_preview_window_size_follows_aspect(self):
+        w, h = trimmer.preview_window_size(1602, 588, 3440, 1440)       # wide region
+        self.assertLess(h, 760)
+        self.assertAlmostEqual((w - 32) / (h - 230), 1602 / 588, delta=0.05)
+        w, h = trimmer.preview_window_size(1080, 1920, 2560, 1440)      # portrait clip
+        self.assertLessEqual(h, 1440 * 0.75 + 1)
+        self.assertGreaterEqual(w, 720)
+        self.assertEqual(trimmer.preview_window_size(0, 0, 1920, 1080), (1100, 760))
+
     def test_pick_encoder(self):
         self.assertEqual(trimmer.pick_encoder({"libx264", "mpeg4"})[0], "libx264")
         self.assertEqual(trimmer.pick_encoder({"libopenh264", "mpeg4"})[0], "libopenh264")

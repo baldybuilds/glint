@@ -12,6 +12,9 @@ IFACE = "org.freedesktop.portal.ScreenCast"
 SOURCE_MONITOR = 1
 CURSOR_HIDDEN, CURSOR_EMBEDDED, CURSOR_METADATA = 1, 2, 4
 PERSIST_PERMANENT = 2
+# One remembered screen-sharing choice for recording and scrolling capture,
+# so the desktop's consent dialog appears once rather than once per feature.
+TOKEN_KEY = "recording.restore_token"
 
 
 class Stream:
@@ -143,17 +146,71 @@ class ScreenCastSession:
             self.fd = None
 
 
-def crop_for(rect, stream, monitor):
-    """videocrop (left, top, right, bottom) in stream pixels plus the output size."""
-    base = stream.rect or (monitor.rect if monitor else (0, 0, rect[2], rect[3]))
-    scale = monitor.scale if monitor else 1.0
-    full_w, full_h = round(base[2] * scale), round(base[3] * scale)
-    x, y, w, h = geometry.even(((rect[0] - base[0]) * scale, (rect[1] - base[1]) * scale,
-                                rect[2] * scale, rect[3] * scale))
-    x = max(0, min(x, full_w - 2))
-    y = max(0, min(y, full_h - 2))
-    w = min(w, full_w - x)
-    h = min(h, full_h - y)
+class CropPlan:
+    """How to crop a stream of px_w x px_h pixels down to the selection."""
+
+    def __init__(self, left, top, right, bottom, width, height, whole):
+        self.left, self.top, self.right, self.bottom = left, top, right, bottom
+        self.width, self.height = width, height
+        self.whole = whole   # True: the stream didn't match the selection, so all of it is used
+
+    def __repr__(self):
+        return (f"CropPlan(l={self.left}, t={self.top}, r={self.right}, b={self.bottom}, "
+                f"{self.width}x{self.height}, whole={self.whole})")
+
+
+def plan_crop(rect, base, px_w, px_h):
+    """Crop for the logical `rect`, given a stream of px_w x px_h pixels that is
+    expected to show the logical area `base` (the stream's own geometry, or the
+    monitor it belongs to).
+
+    If the stream's shape doesn't match `base`, it isn't the full screen we
+    assumed (e.g. the user shared a region or window in the portal dialog), so
+    we keep the whole stream. Output sizes are always even (4:2:0 encoders).
+    """
+    def whole():
+        return CropPlan(0, 0, px_w % 2, px_h % 2, px_w - px_w % 2, px_h - px_h % 2, True)
+
+    if base is None or px_w < 2 or px_h < 2 or base[2] <= 0 or base[3] <= 0:
+        return whole()
+    if abs(px_w / px_h - base[2] / base[3]) > 0.02:
+        return whole()
+    scale = px_w / base[2]
+    x0 = max(0, round((rect[0] - base[0]) * scale))
+    y0 = max(0, round((rect[1] - base[1]) * scale))
+    x1 = min(px_w, round((rect[0] + rect[2] - base[0]) * scale))
+    y1 = min(px_h, round((rect[1] + rect[3] - base[1]) * scale))
+    w, h = x1 - x0, y1 - y0
+    if w < 2 or h < 2:
+        return whole()  # selection isn't on this stream at all
     w -= w % 2
     h -= h % 2
-    return (x, y, full_w - x - w, full_h - y - h), (w, h)
+    return CropPlan(x0, y0, px_w - x0 - w, px_h - y0 - h, w, h, False)
+
+
+def apply_crop_when_ready(source, crop, rect, base, on_plan):
+    """Set `crop` (a videocrop element) from the real stream size.
+
+    The portal often omits stream geometry, so the pixel size is only known
+    once pipewiresrc negotiates. A probe catches that first CAPS event and
+    configures videocrop before it is negotiated downstream. on_plan(plan) is
+    then called on the main loop.
+    """
+    from gi.repository import Gst
+
+    def probe(_pad, info):
+        event = info.get_event()
+        if event is None or event.type != Gst.EventType.CAPS:
+            return Gst.PadProbeReturn.OK
+        st = event.parse_caps().get_structure(0)
+        ok_w, px_w = st.get_int("width")
+        ok_h, px_h = st.get_int("height")
+        if not (ok_w and ok_h):
+            return Gst.PadProbeReturn.OK
+        plan = plan_crop(rect, base, px_w, px_h)
+        for prop in ("left", "top", "right", "bottom"):
+            crop.set_property(prop, getattr(plan, prop))
+        GLib.idle_add(lambda: on_plan(plan) and False)
+        return Gst.PadProbeReturn.REMOVE
+
+    source.get_static_pad("src").add_probe(Gst.PadProbeType.EVENT_DOWNSTREAM, probe)

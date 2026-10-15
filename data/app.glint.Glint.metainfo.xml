@@ -45,6 +45,11 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.1" date="2026-10-15">
+      <description>
+        <p>Fixes screen recording and GIFs failing with "Recording pipeline failed to start".</p>
+      </description>
+    </release>
     <release version="0.2.0" date="2026-10-15">
       <description>
         <p>Glint can become your Print Screen tool, global shortcuts are native on

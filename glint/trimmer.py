@@ -31,6 +31,27 @@ def format_time(seconds):
     return f"{int(minutes):02d}:{secs:04.1f}"
 
 
+def preview_window_size(video_w, video_h, screen_w, screen_h, chrome_h=230, margin_w=32):
+    """Default trimmer window size that fits the video's aspect ratio.
+
+    The preview gets at most ~75% of the screen; very wide or tall videos are
+    clamped so the timeline and controls stay usable.
+    """
+    if not video_w or not video_h:
+        return 1100, 760
+    aspect = video_w / video_h
+    max_w = min(1400, int(screen_w * 0.75))
+    max_h = int(screen_h * 0.75) - chrome_h
+    w = max_w
+    h = w / aspect
+    if h > max_h:
+        h = max_h
+        w = h * aspect
+    w = max(720, int(w) + margin_w)     # room for the format/size options row
+    h = max(180, int(h)) + chrome_h
+    return w, h
+
+
 def adjust_range(start, end, which, t, duration, min_len=MIN_LENGTH):
     """Move the 'start' or 'end' handle to time t, keeping start < end."""
     t = max(0.0, min(duration, t))
@@ -252,7 +273,8 @@ class TrimWindow(Adw.ApplicationWindow):
         self.info = probe(path) or {"duration": 0, "width": 0, "height": 0, "has_audio": False, "fps": 30}
         self.exporting = None
         self.set_title(f"Trim — {os.path.basename(path)}")
-        self.set_default_size(1100, 760)
+        self.set_default_size(*preview_window_size(self.info["width"], self.info["height"],
+                                                   *self._screen_size()))
 
         self.media = Gtk.MediaFile.new_for_filename(path)
         self.media.connect("notify::prepared", self._on_prepared)
@@ -293,13 +315,17 @@ class TrimWindow(Adw.ApplicationWindow):
 
         body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12, margin_top=12, margin_bottom=12,
                        margin_start=16, margin_end=16)
-        self.picture = Gtk.Picture(paintable=self.media, content_fit=Gtk.ContentFit.CONTAIN, can_shrink=True,
-                                   vexpand=True)
+        self.picture = Gtk.Picture(paintable=self.media, content_fit=Gtk.ContentFit.FILL, can_shrink=True,
+                                   overflow=Gtk.Overflow.HIDDEN)
         self.picture.add_css_class("glint-trim-video")
         click = Gtk.GestureClick()
         click.connect("pressed", lambda *_: self.toggle_play())
         self.picture.add_controller(click)
-        body.append(self.picture)
+        # Keep the preview exactly the video's shape: no letterbox bars that
+        # look like they're part of the recording.
+        self.preview = Gtk.AspectFrame(ratio=self._aspect(), obey_child=False, vexpand=True,
+                                       halign=Gtk.Align.FILL, valign=Gtk.Align.FILL, child=self.picture)
+        body.append(self.preview)
 
         row = Gtk.Box(spacing=12)
         self.play_btn = Gtk.Button(icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER)
@@ -339,6 +365,18 @@ class TrimWindow(Adw.ApplicationWindow):
         self.toasts = Adw.ToastOverlay(child=tv)
         self.set_content(self.toasts)
         self._update_labels()
+
+    def _aspect(self):
+        w, h = self.info["width"], self.info["height"]
+        return w / h if w and h else 16 / 9
+
+    @staticmethod
+    def _screen_size():
+        monitors = Gdk.Display.get_default().get_monitors()
+        if monitors.get_n_items():
+            g = monitors.get_item(0).get_geometry()
+            return g.width, g.height
+        return 1920, 1080
 
     def _labeled(self, text, widget):
         box = Gtk.Box(spacing=6)

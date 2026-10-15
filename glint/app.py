@@ -126,6 +126,7 @@ class GlintApp(Adw.Application):
         self.kwin = None
         self.qa = None
         self.kde_shortcuts = False
+        self._sharing = False
         self._held = False
 
     # -- lifecycle -------------------------------------------------------------
@@ -471,48 +472,116 @@ class GlintApp(Adw.Application):
 
         self._select("area", on_result, hint="Select text to copy · Esc to cancel")
 
+    # -- screen sharing (recording & scrolling capture) -------------------------
+
+    def _with_screen_share(self, show_cursor, then):
+        """Open a ScreenCast session *before* the area overlay, then call
+        then(session).
+
+        Wayland requires the desktop's consent dialog; Glint asks it to
+        remember the choice, so it normally appears only the first time. Doing
+        it first means the user's area selection is always the last step and
+        recording starts the moment it's made.
+        """
+        from .screencast import TOKEN_KEY, ScreenCastSession
+
+        if self.busy or self._sharing:
+            return
+        self._sharing = True
+        session = ScreenCastSession(self.config, TOKEN_KEY)
+
+        def started(ok, err):
+            self._sharing = False
+            if ok:
+                then(session)
+                return
+            session.close()
+            if err and "cancelled" not in err:
+                self._error("Screen sharing failed", err)
+
+        def start():
+            session.start(started, show_cursor=show_cursor)
+
+        if self.config.get(TOKEN_KEY):
+            start()
+        else:
+            self._explain_screen_sharing(start, lambda: setattr(self, "_sharing", False))
+
+    def _explain_screen_sharing(self, proceed, cancel):
+        dialog = Adw.AlertDialog(
+            heading="Allow Glint to record your screen",
+            body="Your desktop will now ask which screen Glint may record. You only need to do this once.\n\n"
+                 "• Choose your screen — or all of them, if you have more than one\n"
+                 "• Don't pick “Region”: you'll select the area in Glint right after\n"
+                 "• Let your desktop remember the choice, so you aren't asked again")
+        dialog.add_response("cancel", "Cancel")
+        dialog.add_response("continue", "Continue")
+        dialog.set_response_appearance("continue", Adw.ResponseAppearance.SUGGESTED)
+        dialog.set_default_response("continue")
+        dialog.set_close_response("cancel")
+        dialog.connect("response", lambda _d, r: proceed() if r == "continue" else cancel())
+        dialog.present(None)
+
     def scrolling_capture(self):
         if self.scrolling is not None:
             self.scrolling.finish()
             return
 
-        def on_result(result, _shot):
-            if not result:
-                return
-            from .scrolling import ScrollingSession
+        def with_session(session):
+            def on_result(result, _shot):
+                if not result:
+                    session.close()
+                    return
+                from .scrolling import ScrollingSession
 
-            rect = result["rect"]
+                rect = result["rect"]
 
-            def finished(path, err):
-                self.scrolling = None
-                if err:
-                    self._error("Scrolling capture failed", err)
-                if path:
-                    self.finish_capture(system.load_pixbuf(path), "scrolling", rect)
+                def finished(path, err):
+                    self.scrolling = None
+                    if err:
+                        self._error("Scrolling capture failed", err)
+                    if path:
+                        self.finish_capture(system.load_pixbuf(path), "scrolling", rect)
 
-            self.scrolling = ScrollingSession(self, rect, capture.current_monitors(), finished)
-            self.scrolling.start()
+                def begin():
+                    self.scrolling = ScrollingSession(self, rect, capture.current_monitors(), finished,
+                                                      session=session)
+                    self.scrolling.start()
+                    return False
 
-        self._select("area", on_result, freeze=False,
-                     hint="Select the scrolling area, then scroll slowly · Esc to cancel")
+                GLib.timeout_add(250, begin)  # let the overlay fade out of the stream
+
+            self._select("area", on_result, freeze=False,
+                         hint="Select the scrolling area, then scroll slowly · Esc to cancel")
+
+        self._with_screen_share(False, with_session)
 
     def record_screen(self, fmt="mp4"):
         if self.recorder is not None:
             self.recorder.stop()
             return
 
-        def on_result(result, _shot):
-            if not result:
-                return
-            from .recorder import Recorder
+        def with_session(session):
+            def on_result(result, _shot):
+                if not result:
+                    session.close()
+                    return
+                from .recorder import Recorder
 
-            self.recorder = Recorder(self, result["rect"], capture.current_monitors(), fmt=fmt,
-                                     on_finished=lambda path, err: self._recording_done(path, err, result["rect"]))
-            self.recorder.start()
+                def begin():
+                    self.recorder = Recorder(
+                        self, result["rect"], capture.current_monitors(), fmt=fmt, session=session,
+                        on_finished=lambda path, err: self._recording_done(path, err, result["rect"]))
+                    self.recorder.start()
+                    return False
 
-        label = "GIF" if fmt == "gif" else "video"
-        self._select("area", on_result, freeze=False,
-                     hint=f"Select an area to record as {label} · click a window · F for full screen")
+                GLib.timeout_add(250, begin)  # let the overlay fade out before the first frame
+
+            label = "GIF" if fmt == "gif" else "video"
+            self._select("area", on_result, freeze=False,
+                         hint=f"Select an area to record as {label} · click a window · F for full screen")
+
+        self._with_screen_share(self.config.get("recording.show_cursor"), with_session)
 
     def stop_recording(self):
         if self.recorder is not None:

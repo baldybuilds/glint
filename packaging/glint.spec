@@ -1,5 +1,5 @@
 # Build with packaging/build-rpm.sh (it passes glint_version from glint/__init__.py).
-%{!?glint_version: %global glint_version 0.2.0}
+%{!?glint_version: %global glint_version 0.2.1}
 
 Name:           glint
 Version:        %{glint_version}
@@ -99,6 +99,13 @@ HOME=$(mktemp -d) PYTHONPATH=%{buildroot}%{_datadir}/%{name} \
 %{_metainfodir}/app.glint.Glint.metainfo.xml
 
 %changelog
+* Thu Oct 15 2026 baldybuilds - 0.2.1-1
+- Ask for screen-sharing permission before the area selection (once), and
+  share one remembered choice between recording and scrolling capture
+- Fix recording and scrolling capture failing to start when the shared
+  source is not a full screen (crop now uses the real stream size)
+- Trimmer preview matches the video's aspect ratio (no letterbox bars)
+
 * Thu Oct 15 2026 baldybuilds - 0.2.0-1
 - Native KDE global shortcuts via KGlobalAccel (no portal prompt)
 - "Use Glint for Print Screen": take over / restore Spectacle's shortcuts

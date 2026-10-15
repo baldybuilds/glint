@@ -3,6 +3,27 @@
 All notable changes to Glint are listed here. Versions follow
 [Semantic Versioning](https://semver.org/); dates are YYYY-MM-DD.
 
+## [0.2.1] - 2026-10-15
+
+### Changed
+- Recording and scrolling capture now ask for screen-sharing permission
+  *before* you select the area, with a one-time explanation, so the selection
+  is always the last step and recording starts immediately. Once your desktop
+  remembers the choice, the sharing dialog doesn't appear again, and
+  recording and scrolling capture share that one choice.
+
+### Fixed
+- Recording video/GIFs and scrolling capture failed with "Recording pipeline
+  failed to start" when the source shared in the screen-sharing dialog wasn't
+  a whole screen (e.g. a region or window) or came without geometry. Glint
+  now crops using the stream's real pixel size; if the shared source doesn't
+  match your selection it records/captures all of it, explains why, and asks
+  you to pick a screen again next time.
+- More accurate cropping on fractionally scaled displays.
+- The trimmer preview no longer shows black bars around wide or tall
+  recordings (they were never part of the video); its window is now sized
+  to the recording's shape.
+
 ## [0.2.0] - 2026-10-15
 
 ### Added
@@ -36,5 +57,6 @@ All notable changes to Glint are listed here. Versions follow
   scrolling capture; self-timer; OCR; MP4/GIF recording; tray menu; CLI and
   `glint://` URLs; RPM packaging.
 
+[0.2.1]: https://github.com/baldybuilds/glint/releases/tag/v0.2.1
 [0.2.0]: https://github.com/baldybuilds/glint/releases/tag/v0.2.0
 [0.1.0]: https://github.com/baldybuilds/glint/commit/5bcc6cd

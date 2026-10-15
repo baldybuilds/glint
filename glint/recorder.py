@@ -10,7 +10,7 @@ gi.require_version("Gst", "1.0")
 gi.require_version("Gtk", "4.0")
 from gi.repository import GLib, Gst, Gtk  # noqa: E402
 
-from . import kwin, naming, paths, screencast, system  # noqa: E402
+from . import debug, kwin, naming, paths, screencast, system  # noqa: E402
 from .clicks import ClickHighlighter  # noqa: E402
 
 Gst.init(None)
@@ -37,10 +37,11 @@ def audio_encoder():
     return None
 
 
-def build_pipeline(fd, node_id, crop, fps, out_path, mic=False, system_audio=False):
-    left, top, right, bottom = crop
-    video = (f"pipewiresrc fd={fd} path={node_id} do-timestamp=true always-copy=true keepalive-time=1000 "
-             f"! queue ! videoconvert ! videocrop left={left} top={top} right={right} bottom={bottom} "
+def build_pipeline(fd, node_id, fps, out_path, mic=False, system_audio=False):
+    # The crop is configured once the stream's real size is known; see
+    # screencast.apply_crop_when_ready().
+    video = (f"pipewiresrc name=src fd={fd} path={node_id} do-timestamp=true always-copy=true keepalive-time=1000 "
+             f"! queue ! videoconvert ! videocrop name=crop "
              f"! videorate ! video/x-raw,framerate={fps}/1 ! videoconvert ! video/x-raw,format=I420 "
              f"! {video_encoder(fps)} ! h264parse ! queue ! mp4mux name=mux ! filesink location=\"{out_path}\"")
     sources = []
@@ -90,14 +91,15 @@ class RecordingControls(Gtk.Window):
 class Recorder:
     """One recording. on_finished(path or None, error)."""
 
-    def __init__(self, app, rect, monitors, fmt="mp4", on_finished=None):
+    def __init__(self, app, rect, monitors, fmt="mp4", on_finished=None, session=None):
         self.app = app
         self.cfg = app.config
         self.rect = rect
         self.monitors = monitors
         self.fmt = fmt
         self.on_finished = on_finished
-        self.session = screencast.ScreenCastSession(self.cfg, "recording.restore_token")
+        # Normally handed an already-open session (see GlintApp._with_screen_share).
+        self.session = session or screencast.ScreenCastSession(self.cfg, screencast.TOKEN_KEY)
         self.pipeline = None
         self.controls = None
         self.started_at = None
@@ -112,24 +114,29 @@ class Recorder:
         return self.pipeline is not None and not self._stopping
 
     def start(self):
-        self.session.start(self._on_session, show_cursor=self.cfg.get("recording.show_cursor"))
+        if self.session.fd is not None:
+            self._on_session(True, None)
+        else:
+            self.session.start(self._on_session, show_cursor=self.cfg.get("recording.show_cursor"))
 
     def _on_session(self, ok, err):
         if not ok:
             self._finish(None, err)
             return
         stream, monitor = self.session.stream_for(self.rect, self.monitors)
-        crop, _size = screencast.crop_for(self.rect, stream, monitor)
+        base = stream.rect or (monitor.rect if monitor else None)
         gif = self.fmt == "gif"
         fps = int(self.cfg.get("recording.gif_fps" if gif else "recording.fps"))
         try:
-            desc = build_pipeline(self.session.fd, stream.node_id, crop, fps, self.tmp_path,
+            desc = build_pipeline(self.session.fd, stream.node_id, fps, self.tmp_path,
                                   mic=self.cfg.get("recording.record_mic") and not gif,
                                   system_audio=self.cfg.get("recording.record_system_audio") and not gif)
             self.pipeline = Gst.parse_launch(desc)
         except (GLib.Error, RuntimeError) as exc:
             self._finish(None, f"Could not build recording pipeline: {exc}")
             return
+        screencast.apply_crop_when_ready(self.pipeline.get_by_name("src"), self.pipeline.get_by_name("crop"),
+                                         self.rect, base, self._on_crop_plan)
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self._on_message)
@@ -142,6 +149,11 @@ class Recorder:
         self._show_controls(monitor)
         self._tick_id = GLib.timeout_add(500, self._tick)
         self.app.on_recording_state(True)
+
+    def _on_crop_plan(self, plan):
+        debug("recording crop", plan)
+        if plan.whole:
+            warn_unmatched_source(self.app, screencast.TOKEN_KEY)
 
     def _show_controls(self, monitor):
         if monitor is None:
@@ -274,6 +286,16 @@ class Recorder:
         if self.on_finished:
             self.on_finished(path, err)
             self.on_finished = None
+
+
+def warn_unmatched_source(app, token_key):
+    """The shared source wasn't a full screen we could crop (e.g. a region or
+    window picked in the portal dialog). We use all of it, forget the saved
+    choice so the picker appears next time, and say why."""
+    app.config.set(token_key, "")
+    system.notify(app, "Using the area you shared",
+                  "It didn't match a full screen, so Glint used all of it instead of your selection. "
+                  "Next time, choose a whole screen in the sharing dialog.", "shared-source")
 
 
 def poster_frame(video_path, callback):

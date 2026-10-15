@@ -56,13 +56,13 @@ class ScrollingControls(Gtk.Window):
 class ScrollingSession:
     """on_finished(path or None, error)."""
 
-    def __init__(self, app, rect, monitors, on_finished):
+    def __init__(self, app, rect, monitors, on_finished, session=None):
         self.app = app
         self.cfg = app.config
         self.rect = rect
         self.monitors = monitors
         self.on_finished = on_finished
-        self.session = screencast.ScreenCastSession(self.cfg, "scrolling.restore_token")
+        self.session = session or screencast.ScreenCastSession(self.cfg, screencast.TOKEN_KEY)
         self.stitcher = Stitcher()
         self.pipeline = None
         self.controls = None
@@ -72,19 +72,21 @@ class ScrollingSession:
         self._done = False
 
     def start(self):
-        self.session.start(self._on_session, show_cursor=False)
+        if self.session.fd is not None:
+            self._on_session(True, None)
+        else:
+            self.session.start(self._on_session, show_cursor=False)
 
     def _on_session(self, ok, err):
         if not ok:
             self._end(None, err)
             return
         stream, monitor = self.session.stream_for(self.rect, self.monitors)
-        crop, self.size = screencast.crop_for(self.rect, stream, monitor)
-        left, top, right, bottom = crop
+        base = stream.rect or (monitor.rect if monitor else None)
         fps = int(self.cfg.get("scrolling.fps"))
-        desc = (f"pipewiresrc fd={self.session.fd} path={stream.node_id} always-copy=true keepalive-time=500 "
-                f"! queue leaky=downstream max-size-buffers=2 ! videoconvert "
-                f"! videocrop left={left} top={top} right={right} bottom={bottom} "
+        desc = (f"pipewiresrc name=src fd={self.session.fd} path={stream.node_id} always-copy=true "
+                f"keepalive-time=500 ! queue leaky=downstream max-size-buffers=2 ! videoconvert "
+                f"! videocrop name=crop "
                 f"! videorate drop-only=true ! video/x-raw,format=RGBA,framerate={fps}/1 "
                 f"! appsink name=sink emit-signals=true max-buffers=1 drop=true sync=false")
         try:
@@ -93,11 +95,18 @@ class ScrollingSession:
             self._end(None, f"Could not start scrolling capture: {exc.message}")
             return
         self.pipeline.get_by_name("sink").connect("new-sample", self._on_sample)
+        screencast.apply_crop_when_ready(self.pipeline.get_by_name("src"), self.pipeline.get_by_name("crop"),
+                                         self.rect, base, self._on_crop_plan)
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message::error", self._on_error)
         self.pipeline.set_state(Gst.State.PLAYING)
         self._show_controls(monitor)
+
+    def _on_crop_plan(self, plan):
+        if plan.whole:
+            from .recorder import warn_unmatched_source
+            warn_unmatched_source(self.app, screencast.TOKEN_KEY)
 
     def _show_controls(self, monitor):
         x, y, w, h = self.rect
