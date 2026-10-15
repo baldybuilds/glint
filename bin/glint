@@ -1,0 +1,22 @@
+#!/bin/sh
+# Launcher: run Glint from this checkout (or an install made by install.sh/RPM).
+# Uses the system interpreter because PyGObject/GTK come from Fedora packages.
+
+# Fast path for keyboard shortcuts: hand a plain command straight to the
+# running instance over D-Bus (~10 ms instead of a ~200 ms Python start-up).
+if [ $# -eq 1 ] && command -v gdbus >/dev/null 2>&1; then
+    case "$1" in
+        capture-area|capture-window|capture-fullscreen|capture-previous-area|scrolling-capture|\
+        capture-text|record-screen|stop-recording|self-timer|open-annotate|open-from-clipboard|pin|\
+        trim-video|restore-recently-closed|open-folder|preferences|about|set-default|unset-default)
+            if gdbus call --session --dest app.glint.Glint --object-path /app/glint/Glint \
+                   --method org.gtk.Actions.Activate run-command "[<'$1'>]" "{}" >/dev/null 2>&1; then
+                exit 0
+            fi
+            ;;
+    esac
+fi
+
+here=$(dirname "$(readlink -f "$0")")
+root=$(dirname "$here")
+PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}" exec /usr/bin/python3 -m glint "$@"

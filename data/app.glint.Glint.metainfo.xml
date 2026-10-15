@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.glint.Glint</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Glint</name>
+  <summary>Capture, annotate and record your screen</summary>
+  <developer id="io.github.baldybuilds">
+    <name>baldybuilds</name>
+  </developer>
+  <url type="homepage">https://github.com/baldybuilds/glint</url>
+  <url type="bugtracker">https://github.com/baldybuilds/glint/issues</url>
+  <url type="vcs-browser">https://github.com/baldybuilds/glint</url>
+  <description>
+    <p>
+      Glint is a screenshot and screen-recording tool for KDE Plasma on Wayland,
+      inspired by CleanShot X. It lives in the system tray and is driven by
+      global shortcuts.
+    </p>
+    <ul>
+      <li>Capture an area, window, display or the previous area, with a magnifier</li>
+      <li>Quick Access thumbnails to copy, save, annotate, pin or drag captures</li>
+      <li>Annotate with arrows, shapes, text, blur, pixelate, spotlight and counters</li>
+      <li>Pin screenshots on top of other windows</li>
+      <li>Scrolling capture, self-timer and text recognition (OCR)</li>
+      <li>Record the screen as MP4 or GIF with click highlighting, then trim it</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">app.glint.Glint.desktop</launchable>
+  <provides>
+    <binary>glint</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <keywords>
+    <keyword>screenshot</keyword>
+    <keyword>screen recording</keyword>
+    <keyword>annotate</keyword>
+    <keyword>gif</keyword>
+  </keywords>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.2.0" date="2026-10-15">
+      <description>
+        <p>Glint can become your Print Screen tool, global shortcuts are native on
+        KDE Plasma, and the record shortcut no longer clashes with Spectacle.</p>
+      </description>
+    </release>
+    <release version="0.1.0" date="2026-10-15">
+      <description>
+        <p>First release: captures, annotation, pinning, scrolling capture, OCR,
+        recording with click highlighting and video trimming.</p>
+      </description>
+    </release>
+  </releases>
+</component>

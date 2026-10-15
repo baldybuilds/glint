@@ -1,0 +1,64 @@
+[Desktop Entry]
+Type=Application
+Name=Glint
+GenericName=Screenshot Tool
+Comment=Capture, annotate and record your screen
+Exec=glint %U
+Icon=app.glint.Glint
+Terminal=false
+Categories=Utility;
+Keywords=screenshot;screen;capture;record;annotate;gif;scrolling;ocr;pin;
+MimeType=x-scheme-handler/glint;
+StartupNotify=false
+DBusActivatable=false
+Actions=CaptureArea;CaptureFullscreen;CaptureWindow;CapturePreviousArea;ScrollingCapture;CaptureText;RecordScreen;Annotate;TrimVideo;Preferences;
+
+# Global shortcuts: this file is also linked into share/kglobalaccel/ so
+# Plasma registers the X-KDE-Shortcuts below, exactly like Spectacle's.
+
+[Desktop Action CaptureArea]
+Name=Capture Area
+Exec=glint capture-area
+X-KDE-Shortcuts=Meta+Shift+4
+
+[Desktop Action CaptureFullscreen]
+Name=Capture Fullscreen
+Exec=glint capture-fullscreen
+X-KDE-Shortcuts=Meta+Shift+3
+
+[Desktop Action CaptureWindow]
+Name=Capture Window
+Exec=glint capture-window
+X-KDE-Shortcuts=Meta+Shift+5
+
+[Desktop Action CapturePreviousArea]
+Name=Capture Previous Area
+Exec=glint capture-previous-area
+X-KDE-Shortcuts=Meta+Shift+6
+
+[Desktop Action ScrollingCapture]
+Name=Scrolling Capture
+Exec=glint scrolling-capture
+X-KDE-Shortcuts=Meta+Shift+7
+
+[Desktop Action CaptureText]
+Name=Capture Text (OCR)
+Exec=glint capture-text
+X-KDE-Shortcuts=Meta+Shift+2
+
+[Desktop Action RecordScreen]
+Name=Record Screen
+Exec=glint record-screen
+X-KDE-Shortcuts=Meta+Shift+8
+
+[Desktop Action Annotate]
+Name=Open Annotate Tool
+Exec=glint open-annotate
+
+[Desktop Action TrimVideo]
+Name=Trim Video
+Exec=glint trim-video
+
+[Desktop Action Preferences]
+Name=Preferences
+Exec=glint preferences

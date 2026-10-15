@@ -1,0 +1,8 @@
+# Build output
+packaging/rpmbuild/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+# Private docs stay local; only README screenshots are published
+docs/*
+!docs/images/

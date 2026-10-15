@@ -1,0 +1,105 @@
+/* Selection overlay */
+window.glint-overlay {
+  background: none;
+  box-shadow: none;
+}
+
+/* Quick Access Overlay cards */
+window.glint-qa {
+  background: none;
+  box-shadow: none;
+}
+
+.glint-qa-shade {
+  background: alpha(black, 0.45);
+  border-radius: 12px;
+}
+
+button.glint-qa-pill {
+  border-radius: 999px;
+  padding: 2px 18px;
+  min-height: 26px;
+  background: alpha(white, 0.92);
+  color: #1d1d1f;
+  font-weight: 600;
+  box-shadow: 0 1px 3px alpha(black, 0.3);
+}
+
+button.glint-qa-pill:hover {
+  background: white;
+}
+
+button.glint-qa-icon {
+  background: alpha(black, 0.6);
+  color: white;
+  min-width: 26px;
+  min-height: 26px;
+  padding: 0;
+}
+
+button.glint-qa-icon:hover {
+  background: alpha(black, 0.8);
+}
+
+.glint-qa-badge {
+  background: alpha(black, 0.65);
+  color: white;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+/* Pinned screenshots */
+window.glint-pin {
+  background: none;
+  box-shadow: none;
+}
+
+/* Floating recording / scrolling controls */
+window.glint-controls {
+  background: none;
+  box-shadow: none;
+}
+
+window.glint-controls > box {
+  background: alpha(@window_bg_color, 0.97);
+  color: @window_fg_color;
+  border-radius: 14px;
+  border: 1px solid alpha(currentColor, 0.15);
+}
+
+.glint-rec-dot {
+  color: #ff3b30;
+  font-size: 16px;
+}
+
+/* Self-timer countdown */
+window.glint-timer {
+  background: none;
+  box-shadow: none;
+}
+
+window.glint-timer > box {
+  background: alpha(black, 0.7);
+  border-radius: 32px;
+}
+
+.glint-countdown {
+  font-size: 88px;
+  font-weight: 800;
+  color: white;
+}
+
+/* Annotate editor */
+button.glint-swatch {
+  padding: 3px;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Video trimmer */
+.glint-trim-video {
+  background-color: black;
+  border-radius: 10px;
+}
