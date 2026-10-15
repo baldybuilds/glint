@@ -17,7 +17,7 @@ A CleanShot X–inspired screenshot and screen‑recording tool for Fedora and K
 [![Status: alpha](https://img.shields.io/badge/status-alpha-F97316)](#-what-to-expect)
 [![GitHub stars](https://img.shields.io/github/stars/baldybuilds/glint?style=flat&logo=github)](https://github.com/baldybuilds/glint/stargazers)
 
-[Features](#-features) · [Install](#-installation) · [Usage](#-usage) · [Shortcuts](#%EF%B8%8F-keyboard-shortcuts) · [Troubleshooting](#-troubleshooting) · [Development](#%EF%B8%8F-development)
+[Features](#-features) · [Install](#-installation) · [Usage](#-usage) · [Shortcuts](#%EF%B8%8F-keyboard-shortcuts) · [Troubleshooting](#-troubleshooting) · [Development](#%EF%B8%8F-development) · [Contributing](CONTRIBUTING.md)
 
 <br>
 
@@ -395,7 +395,7 @@ tests/                unit tests
 - [ ] Cloud / custom-server upload
 - [ ] Flatpak (needs portal-only capture paths)
 
-Contributions and [bug reports](https://github.com/baldybuilds/glint/issues) are very welcome. Please mention your desktop, session type and GPU.
+Contributions and [bug reports](https://github.com/baldybuilds/glint/issues) are very welcome. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for how to report bugs, set up a dev environment and open a pull request.
 
 ## 👥 Contributors
 
@@ -408,7 +408,7 @@ Contributions and [bug reports](https://github.com/baldybuilds/glint/issues) are
 </tr>
 </table>
 
-Want to see your face here? [Open a pull request](https://github.com/baldybuilds/glint/pulls).
+Want to see your face here? Read the [contributing guide](CONTRIBUTING.md) and [open a pull request](https://github.com/baldybuilds/glint/pulls).
 
 ## ⚖️ Disclaimer
 
