@@ -3,6 +3,18 @@
 All notable changes to Glint are listed here. Versions follow
 [Semantic Versioning](https://semver.org/); dates are YYYY-MM-DD.
 
+## [0.4.0] - 2026-10-16
+
+### Added
+- **Capture History** (tray → Capture History…, `glint history`, or bind it
+  in System Settings): recent screenshots and recordings grouped by day,
+  filterable, with copy, annotate/trim, pin, open, show in folder, drag out
+  and delete. Captures you saved are only referenced, never deleted;
+  unsaved captures are kept by history until they expire.
+- Preferences → General → Capture History: keep captures for 1 day, 1 week
+  (default), 1 month or forever, or turn history off; shows disk usage and
+  can clear it.
+
 ## [0.3.0] - 2026-10-16
 
 ### Changed
@@ -75,6 +87,7 @@ All notable changes to Glint are listed here. Versions follow
   scrolling capture; self-timer; OCR; MP4/GIF recording; tray menu; CLI and
   `glint://` URLs; RPM packaging.
 
+[0.4.0]: https://github.com/baldybuilds/glint/releases/tag/v0.4.0
 [0.3.0]: https://github.com/baldybuilds/glint/releases/tag/v0.3.0
 [0.2.1]: https://github.com/baldybuilds/glint/releases/tag/v0.2.1
 [0.2.0]: https://github.com/baldybuilds/glint/releases/tag/v0.2.0

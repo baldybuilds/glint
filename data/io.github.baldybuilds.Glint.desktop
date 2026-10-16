@@ -11,7 +11,7 @@ Keywords=screenshot;screen;capture;record;annotate;gif;scrolling;ocr;pin;
 MimeType=x-scheme-handler/glint;
 StartupNotify=false
 DBusActivatable=false
-Actions=CaptureArea;CaptureFullscreen;CaptureWindow;CapturePreviousArea;ScrollingCapture;CaptureText;RecordScreen;Annotate;TrimVideo;Preferences;
+Actions=CaptureArea;CaptureFullscreen;CaptureWindow;CapturePreviousArea;ScrollingCapture;CaptureText;RecordScreen;History;Annotate;TrimVideo;Preferences;
 
 # Global shortcuts: this file is also linked into share/kglobalaccel/ so
 # Plasma registers the X-KDE-Shortcuts below, exactly like Spectacle's.
@@ -50,6 +50,10 @@ X-KDE-Shortcuts=Meta+Shift+2
 Name=Record Screen
 Exec=glint record-screen
 X-KDE-Shortcuts=Meta+Shift+8
+
+[Desktop Action History]
+Name=Capture History
+Exec=glint history
 
 [Desktop Action Annotate]
 Name=Open Annotate Tool

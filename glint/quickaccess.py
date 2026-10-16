@@ -285,6 +285,7 @@ class QuickAccessCard(Gtk.Window):
             system.reveal_in_folder(self.item.path)
             return
         dest = self.app.save_capture_file(self.item.path, kind="Screenshot")
+        self.app.history.relink(self.item.path, dest)
         self.item.path = dest
         self.item.saved = True
         self.save_btn.set_label("Show in Folder")
@@ -302,6 +303,7 @@ class QuickAccessCard(Gtk.Window):
         from .recorder import poster_frame
 
         def saved(path):
+            self.app.history_media_changed(self.item.file, path)
             self.item.video = path
 
             def got_poster(poster):
@@ -323,6 +325,7 @@ class QuickAccessCard(Gtk.Window):
 
     def annotate(self):
         def saved(path):
+            self.app.history_media_changed(self.item.path, path)
             self.item.path = path
             if self.get_visible() and self in self.manager.cards:
                 self.refresh()

@@ -1,5 +1,5 @@
 # Build with packaging/build-rpm.sh (it passes glint_version from glint/__init__.py).
-%{!?glint_version: %global glint_version 0.3.0}
+%{!?glint_version: %global glint_version 0.4.0}
 
 Name:           glint
 Version:        %{glint_version}
@@ -111,6 +111,10 @@ HOME=$(mktemp -d) PYTHONPATH=%{buildroot}%{_datadir}/%{name} \
 %{_metainfodir}/io.github.baldybuilds.Glint.metainfo.xml
 
 %changelog
+* Fri Oct 16 2026 baldybuilds - 0.4.0-1
+- Capture History: recent screenshots and recordings grouped by day, with
+  copy, annotate/trim, pin, drag out and delete; configurable retention
+
 * Fri Oct 16 2026 baldybuilds - 0.3.0-1
 - New app ID io.github.baldybuilds.Glint; shortcuts, Print Screen takeover
   and autostart migrate automatically from app.glint.Glint

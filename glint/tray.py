@@ -181,6 +181,7 @@ class Tray:
             MenuItem("Trim Video…", "trim-video"),
             MenuItem("Open from Clipboard", "open-from-clipboard"),
             MenuItem("Pin to the Screen…", "pin"),
+            MenuItem("Capture History…", "history"),
             MenuItem("Restore Recently Closed", "restore-recently-closed"),
             MenuItem(separator=True),
             MenuItem("Open Screenshots Folder", "open-folder"),

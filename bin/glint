@@ -8,7 +8,7 @@ if [ $# -eq 1 ] && command -v gdbus >/dev/null 2>&1; then
     case "$1" in
         capture-area|capture-window|capture-fullscreen|capture-previous-area|scrolling-capture|\
         capture-text|record-screen|stop-recording|self-timer|open-annotate|open-from-clipboard|pin|\
-        trim-video|restore-recently-closed|open-folder|preferences|about|set-default|unset-default)
+        trim-video|restore-recently-closed|history|open-folder|preferences|about|set-default|unset-default)
             if gdbus call --session --dest io.github.baldybuilds.Glint --object-path /io/github/baldybuilds/Glint \
                    --method org.gtk.Actions.Activate run-command "[<'$1'>]" "{}" >/dev/null 2>&1; then
                 exit 0

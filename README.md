@@ -71,6 +71,7 @@ A CleanShot X–inspired screenshot and screen‑recording tool for Fedora and K
 ### ⚡ Stay in flow
 - **Quick Access Overlay**: every capture pops up in a corner — copy, save, annotate, pin or **drag it straight into another app**
 - **Pin** screenshots on top of everything
+- **Capture History** — every recent screenshot and recording, grouped by day
 - **Restore recently closed** captures
 - Tray menu, global shortcuts, `glint://` URLs and a CLI
 - One click to make Glint your **Print Screen** tool
@@ -91,6 +92,9 @@ A CleanShot X–inspired screenshot and screen‑recording tool for Fedora and K
 <td align="center"><sub><b>Quick Access Overlay</b></sub></td>
 </tr>
 </table>
+
+<img src="docs/images/history.png" alt="Capture History window with recent screenshots and a recording grouped by day">
+<p align="center"><sub><b>Capture History</b> — reopen, copy, pin or drag out anything you captured recently</sub></p>
 
 <img src="docs/images/annotate.png" alt="The Glint annotation editor">
 <p align="center"><sub><b>Annotate</b> — every tool one keypress away</sub></p>
@@ -215,6 +219,10 @@ sudo dnf install spectacle ffmpeg-free tesseract gifsicle wl-clipboard
 
 Hover a thumbnail for **Copy**, **Save**, ✕ close, 📌 pin, ✏️ annotate and 🔍 OCR. **Drag** it into any app to drop the file. Double-click to annotate (or to trim, for recordings). Closed by mistake? Use **Restore Recently Closed** from the tray.
 
+### Capture History
+
+Open it from the tray (**Capture History…**), with `glint history`, or bind a key to it in **System Settings → Shortcuts → Glint**. Captures are grouped by day; filter by screenshots or recordings, double-click to annotate (or trim), hover for quick copy/edit/delete, right-click for more, or drag a capture into another app. **Preferences → General → Capture History** sets how long captures are kept (1 day – forever, default 1 week). Captures you saved to your folders are never deleted by history.
+
 ### Making Glint your screenshot tool
 
 Glint can swap the desktop's screenshot shortcuts over to itself and give them back later:
@@ -284,7 +292,7 @@ glint record-screen format=gif          # run again to stop
 glint open-annotate image.png | pin image.png | open-from-clipboard
 glint trim-video recording.mp4
 glint set-default | unset-default       # take over / give back Print Screen
-glint restore-recently-closed | preferences | quit
+glint history | restore-recently-closed | preferences | quit
 glint --help
 ```
 

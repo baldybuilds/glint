@@ -131,6 +131,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             self._switch("Copy to clipboard", "after_capture.copy"),
             self._switch("Open annotate tool", "after_capture.annotate"),
         ])
+        self._history_group(page)
         from .log import log_path
         row = Adw.ActionRow(title="Log file", subtitle=log_path().replace(GLib.get_home_dir(), "~", 1))
         btn = Gtk.Button(label="Show", valign=Gtk.Align.CENTER)
@@ -139,6 +140,55 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._group(page, "Troubleshooting", [row],
                     "Attach the log file when you report a bug. It may contain file names.")
         return page
+
+    def _history_group(self, page):
+        from .history import RETENTION_LABELS, human_size
+        history = self.app.history
+        combo = Adw.ComboRow(title="Keep captures for")
+        combo.set_model(Gtk.StringList.new([label for _v, label in RETENTION_LABELS]))
+        values = [v for v, _l in RETENTION_LABELS]
+        current = self.cfg.get("general.history_retention")
+        combo.set_selected(values.index(current) if current in values else values.index("week"))
+
+        def usage():
+            return f"{len(history.entries)} captures · {human_size(history.disk_usage())} stored by Glint"
+
+        combo.set_subtitle(usage())
+
+        def changed(row, _p):
+            value = values[row.get_selected()]
+            self.cfg.set("general.history_retention", value)
+            history.set_retention(value)
+            row.set_subtitle(usage())
+
+        combo.connect("notify::selected", changed)
+        open_row = Adw.ActionRow(title="Capture History", subtitle="Browse, copy and reopen recent captures")
+        show = Gtk.Button(label="Open", valign=Gtk.Align.CENTER)
+        show.connect("clicked", lambda *_: self.app.show_history())
+        clear = Gtk.Button(label="Clear…", valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+
+        def do_clear(*_a):
+            dialog = Adw.AlertDialog(heading="Clear capture history?",
+                                     body="Captures saved to your folders stay there. "
+                                          "Captures that were never saved are deleted.")
+            dialog.add_response("cancel", "Cancel")
+            dialog.add_response("clear", "Clear History")
+            dialog.set_response_appearance("clear", Adw.ResponseAppearance.DESTRUCTIVE)
+
+            def response(_d, r):
+                if r == "clear":
+                    history.clear()
+                    combo.set_subtitle(usage())
+
+            dialog.connect("response", response)
+            dialog.present(self)
+
+        clear.connect("clicked", do_clear)
+        open_row.add_suffix(show)
+        open_row.add_suffix(clear)
+        self._group(page, "Capture History", [combo, open_row],
+                    "Captures you saved stay in your folders; history only deletes its own copies of "
+                    "unsaved captures when they expire.")
 
     def _template_row(self):
         row = Adw.EntryRow(title="File name template")

@@ -30,6 +30,7 @@ COMMANDS = {
     "open-from-clipboard": "Annotate the image on the clipboard",
     "pin": "Pin an image to the screen (filepath=…)",
     "restore-recently-closed": "Re-open the last closed Quick Access item",
+    "history": "Show capture history",
     "open-folder": "Open the screenshots folder",
     "set-default": "Make Glint the desktop's screenshot tool (takes over Print Screen)",
     "unset-default": "Give the screenshot shortcuts back to the desktop's own tool",
@@ -155,6 +156,9 @@ class GlintApp(Adw.Application):
             # Put KWin's click effect back if a previous run died mid-recording.
             ClickHighlighter(self.config).restore_pending()
         self.qa = QuickAccessManager(self)
+        from .history import History
+        self.history = History(retention=self.config.get("general.history_retention"))
+        self.history_window = None
         try:
             from .tray import Tray
             self.tray = Tray(conn, self.run_command)
@@ -343,6 +347,7 @@ class GlintApp(Adw.Application):
             "open-from-clipboard": self.open_from_clipboard,
             "pin": lambda: self.pin_file(params.get("filepath")),
             "restore-recently-closed": self.restore_recently_closed,
+            "history": self.show_history,
             "open-folder": lambda: self._open_folder(),
             "set-default": self.set_default_tool,
             "unset-default": self.unset_default_tool,
@@ -631,6 +636,11 @@ class GlintApp(Adw.Application):
         from .recorder import poster_frame
 
         def got_poster(poster):
+            from .trimmer import probe
+            info = probe(path) or {}
+            self.history.add(path, kind="gif" if path.lower().endswith(".gif") else "video",
+                             width=info.get("width"), height=info.get("height"),
+                             duration=info.get("duration"), poster=poster)
             card = None
             if poster is None:
                 system.notify(self, "Recording saved", os.path.basename(path))
@@ -666,6 +676,10 @@ class GlintApp(Adw.Application):
         if cfg.get("after_capture.save"):
             item.path = self.save_capture_file(cache, kind=kind.capitalize())
             item.saved = True
+        entry = self.history.add(item.path, kind="screenshot" if kind == "area" else kind, adopt=not item.saved,
+                                 width=pixbuf.get_width(), height=pixbuf.get_height())
+        if entry is not None:
+            item.path = entry["path"]
         if cfg.get("after_capture.copy"):
             system.copy_image(item.path)
         self._prune_cache()
@@ -815,6 +829,32 @@ class GlintApp(Adw.Application):
                 system.notify(self, "Text copied", preview, "ocr")
 
         system.run_capture(["tesseract", path, "stdout", "--psm", "6"], done)
+
+    def show_history(self):
+        if self.history_window is None:
+            from .history_window import HistoryWindow
+            self.history_window = HistoryWindow(self)
+            self.history_window.connect("destroy", lambda *_: setattr(self, "history_window", None))
+        self.history_window.present()
+
+    def history_media_changed(self, old_path, new_path=None):
+        """A capture was edited (annotated / trimmed) or saved elsewhere."""
+        entry = self.history.find_path(old_path)
+        if entry is None:
+            return
+        if new_path and new_path != old_path:
+            self.history.relink(old_path, new_path)
+        if entry.get("kind") in ("video", "gif"):
+            from .recorder import poster_frame
+
+            def got(poster):
+                if poster:
+                    self.history.thumbnailer(poster, self.history.thumb_path(entry))
+                self.history.touch(entry)
+
+            poster_frame(entry["path"], got)
+        else:
+            self.history.touch(entry)
 
     def restore_recently_closed(self):
         if not self.qa.restore_last():

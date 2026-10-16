@@ -18,6 +18,7 @@ DEFAULTS = {
         "backend": "auto",         # auto | spectacle | portal | grim
         "launch_at_login": False,
         "history_limit": 30,
+        "history_retention": "week",   # off | day | week | month | forever
     },
     "after_capture": {
         "show_overlay": True,
