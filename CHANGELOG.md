@@ -3,6 +3,26 @@
 All notable changes to Glint are listed here. Versions follow
 [Semantic Versioning](https://semver.org/); dates are YYYY-MM-DD.
 
+## [0.5.0] - 2026-10-16
+
+### Added
+- **Curved arrows and lines**: drag the handle in the middle to bend them.
+- **Arrow heads**: tapered (default), classic, open or double-headed.
+- **Line styles**: solid, dashed, dotted or dash-dot for rectangles,
+  ellipses, lines, arrows and the pen.
+- **Magnifier** tool (<kbd>M</kbd>): a round lens enlarging what's under it
+  2×, 3× or 4×. Pixelated and blurred areas stay hidden inside the lens.
+- **Images and emoji**: insert them from the new toolbar button, paste an
+  image with <kbd>Ctrl</kbd>+<kbd>V</kbd>, or drop an image file on the
+  canvas. They resize in proportion and can cast a shadow.
+- **Copy, paste and duplicate shapes**: <kbd>Ctrl</kbd>+<kbd>C</kbd> with a
+  shape selected copies it (other apps still receive the whole image),
+  <kbd>Ctrl</kbd>+<kbd>V</kbd> pastes it, also into another editor window,
+  and <kbd>Ctrl</kbd>+<kbd>D</kbd> duplicates. Right-click a shape for these
+  and Delete.
+- The options bar follows the selected shape, so you can change an arrow's
+  head or a line's style with the Select tool.
+
 ## [0.4.1] - 2026-10-16
 
 ### Added
@@ -104,6 +124,7 @@ All notable changes to Glint are listed here. Versions follow
   scrolling capture; self-timer; OCR; MP4/GIF recording; tray menu; CLI and
   `glint://` URLs; RPM packaging.
 
+[0.5.0]: https://github.com/baldybuilds/glint/releases/tag/v0.5.0
 [0.4.1]: https://github.com/baldybuilds/glint/releases/tag/v0.4.1
 [0.4.0]: https://github.com/baldybuilds/glint/releases/tag/v0.4.0
 [0.3.0]: https://github.com/baldybuilds/glint/releases/tag/v0.3.0

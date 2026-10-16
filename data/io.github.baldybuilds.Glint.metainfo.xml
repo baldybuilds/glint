@@ -79,6 +79,13 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.5.0" date="2026-10-16">
+      <description>
+        <p>Annotation upgrades: curved arrows with four head styles, dashed and
+        dotted lines, a magnifier, images and emoji, and copy, paste and
+        duplicate for shapes.</p>
+      </description>
+    </release>
     <release version="0.4.1" date="2026-10-16">
       <description>
         <p>Notifications now come from Glint and explain what to do next.

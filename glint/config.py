@@ -57,6 +57,9 @@ DEFAULTS = {
         "spotlight_opacity": 0.55,
         "draw_shadow": True,
         "inverse_arrow": False,
+        "line_style": "solid",      # solid | dashed | dotted | dashdot
+        "arrow_head": "standard",   # standard | classic | open | double
+        "magnify_zoom": 2,
     },
     "recording": {
         "format": "mp4",           # mp4 | gif

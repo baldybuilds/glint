@@ -3,7 +3,7 @@
 APP_ID = "io.github.baldybuilds.Glint"
 LEGACY_APP_ID = "app.glint.Glint"   # before 0.3.0; migrated on start-up
 APP_NAME = "Glint"
-VERSION = "0.4.1"
+VERSION = "0.5.0"
 URL_SCHEME = "glint"
 
 

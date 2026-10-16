@@ -1,5 +1,5 @@
 # Build with packaging/build-rpm.sh (it passes glint_version from glint/__init__.py).
-%{!?glint_version: %global glint_version 0.4.1}
+%{!?glint_version: %global glint_version 0.5.0}
 
 Name:           glint
 Version:        %{glint_version}
@@ -54,6 +54,7 @@ Recommends:     kf6-kconfig
 # GIFs and trimming (ffmpeg-free from Fedora or ffmpeg from RPM Fusion).
 Recommends:     /usr/bin/ffmpeg
 Recommends:     wl-clipboard
+Recommends:     google-noto-color-emoji-fonts
 Recommends:     libcanberra-gtk3
 Suggests:       tesseract
 Suggests:       gifsicle
@@ -111,6 +112,10 @@ HOME=$(mktemp -d) PYTHONPATH=%{buildroot}%{_datadir}/%{name} \
 %{_metainfodir}/io.github.baldybuilds.Glint.metainfo.xml
 
 %changelog
+* Fri Oct 16 2026 baldybuilds - 0.5.0-1
+- Annotate: curved arrows and arrow head styles, dashed/dotted lines,
+  magnifier, images and emoji, copy/paste and duplicate shapes
+
 * Fri Oct 16 2026 baldybuilds - 0.4.1-1
 - Do Not Disturb while recording; recording quality setting
 - Notifications show "Glint" as the sender and say what to do next

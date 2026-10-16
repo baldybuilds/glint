@@ -34,8 +34,14 @@ TOOLS = [
     ("counter", "Counter", "n"),
     ("pen", "Pen", "d"),
     ("marker", "Highlighter", "h"),
+    ("magnify", "Magnifier", "m"),
     ("crop", "Crop", "c"),
 ]
+
+LINE_STYLES = [("solid", "Solid"), ("dashed", "Dashed"), ("dotted", "Dotted"), ("dashdot", "Dash-dot")]
+ARROW_HEADS = [("standard", "Tapered"), ("classic", "Classic"), ("open", "Open"), ("double", "Double")]
+MAGNIFY_ZOOMS = [2, 3, 4]
+DASHABLE = ("rect", "ellipse", "line", "arrow", "pen")
 
 TEXT_STYLES = [
     ("standard", "Standard"),
@@ -66,6 +72,47 @@ def _seg_distance(px, py, x0, y0, x1, y1):
     return math.hypot(px - (x0 + t * dx), py - (y0 + t * dy))
 
 
+def set_dash(cr, style, width):
+    """Dash pattern for a stroke of `width`; round caps make dots and soften
+    dash ends (the gaps allow for them)."""
+    w = max(1.0, width)
+    # Cairo merges a zero-length dash mid-pattern into the gaps, so the
+    # dash-dot "dot" gets a tiny length; round caps make it a full dot.
+    patterns = {"dashed": [w * 3, w * 2.4], "dotted": [0, w * 2.2], "dashdot": [w * 3, w * 2.2, 0.01, w * 2.2]}
+    if style in patterns:
+        cr.set_line_cap(cairo.LINE_CAP_ROUND)
+        cr.set_dash(patterns[style])
+    else:
+        cr.set_dash([])
+
+
+def surface_from_pixbuf(pixbuf):
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, pixbuf.get_width(), pixbuf.get_height())
+    cr = cairo.Context(surface)
+    system.cairo_set_source_pixbuf(cr, pixbuf, 0, 0)
+    cr.paint()
+    return surface
+
+
+def emoji_surface(emoji, size=256):
+    """Render an emoji (in colour, where the font allows) cropped to its ink."""
+    probe = cairo.ImageSurface(cairo.FORMAT_ARGB32, size * 2, size * 2)
+    cr = cairo.Context(probe)
+    layout = PangoCairo.create_layout(cr)
+    desc = Pango.FontDescription.from_string("Sans")
+    desc.set_absolute_size(size * Pango.SCALE)
+    layout.set_font_description(desc)
+    layout.set_text(emoji, -1)
+    ink, _logical = layout.get_pixel_extents()
+    w, h = max(1, ink.width), max(1, ink.height)
+    out = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+    cr = cairo.Context(out)
+    cr.move_to(-ink.x, -ink.y)
+    PangoCairo.show_layout(cr, layout)
+    out.flush()
+    return out
+
+
 def luminance(color):
     r, g, b = color[:3]
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
@@ -75,10 +122,11 @@ class Shape:
     kind = ""
     casts_shadow = True
 
-    def __init__(self, color=(1, 0, 0, 1), width=4, shadow=True):
+    def __init__(self, color=(1, 0, 0, 1), width=4, shadow=True, dash="solid"):
         self.color = tuple(color)
         self.width = width
         self.shadow = shadow
+        self.dash = dash
 
     def bbox(self):
         raise NotImplementedError
@@ -214,24 +262,63 @@ class BoxShape(Shape):
             return
         cr.set_line_width(self.width)
         cr.set_line_join(cairo.LINE_JOIN_ROUND)
+        set_dash(cr, self.dash, self.width)
         self.path(cr)
         cr.stroke()
+        cr.set_dash([])
 
 
 class LineShape(Shape):
-    """line and arrow."""
+    """line and arrow. `bend` curves it: the perpendicular distance of the
+    curve's midpoint from the straight line, so it survives moving the ends."""
 
-    def __init__(self, kind, x0, y0, x1=None, y1=None, **kw):
+    def __init__(self, kind, x0, y0, x1=None, y1=None, head="standard", bend=0.0, **kw):
         super().__init__(**kw)
         self.kind = kind
         self.x0, self.y0 = x0, y0
         self.x1 = x0 if x1 is None else x1
         self.y1 = y0 if y1 is None else y1
+        self.head = head
+        self.bend = bend
+
+    # -- geometry --------------------------------------------------------------
+
+    def _normal(self):
+        dx, dy = self.x1 - self.x0, self.y1 - self.y0
+        length = math.hypot(dx, dy)
+        if length < 1e-6:
+            return 0.0, 0.0
+        return -dy / length, dx / length
+
+    def control(self):
+        """Quadratic Bézier control point (on the chord when straight)."""
+        nx, ny = self._normal()
+        mx, my = (self.x0 + self.x1) / 2, (self.y0 + self.y1) / 2
+        return mx + nx * 2 * self.bend, my + ny * 2 * self.bend
+
+    def mid_point(self):
+        nx, ny = self._normal()
+        return (self.x0 + self.x1) / 2 + nx * self.bend, (self.y0 + self.y1) / 2 + ny * self.bend
+
+    def points(self):
+        """The line as a polyline (two points when straight)."""
+        if abs(self.bend) < 0.5:
+            return [(self.x0, self.y0), (self.x1, self.y1)]
+        cx, cy = self.control()
+        length = math.hypot(self.x1 - self.x0, self.y1 - self.y0) + 2 * abs(self.bend)
+        n = int(min(64, max(12, length / 6)))
+        out = []
+        for i in range(n + 1):
+            t = i / n
+            a, b, c = (1 - t) ** 2, 2 * (1 - t) * t, t * t
+            out.append((a * self.x0 + b * cx + c * self.x1, a * self.y0 + b * cy + c * self.y1))
+        return out
 
     def bbox(self):
         pad = self.width * 3 if self.kind == "arrow" else self.width
-        x, y, w, h = geometry.normalize(self.x0, self.y0, self.x1, self.y1)
-        return (x - pad, y - pad, w + 2 * pad, h + 2 * pad)
+        pts = self.points()
+        xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+        return (min(xs) - pad, min(ys) - pad, max(xs) - min(xs) + 2 * pad, max(ys) - min(ys) + 2 * pad)
 
     def is_degenerate(self):
         return math.hypot(self.x1 - self.x0, self.y1 - self.y0) < 3
@@ -248,10 +335,15 @@ class LineShape(Shape):
         self.y1 += dy
 
     def handles(self):
-        return [("p0", self.x0, self.y0), ("p1", self.x1, self.y1)]
+        mx, my = self.mid_point()
+        return [("p0", self.x0, self.y0), ("p1", self.x1, self.y1), ("mid", mx, my)]
 
     def move_handle(self, key, x, y, constrain=False):
-        if key == "p0":
+        if key == "mid":
+            nx, ny = self._normal()
+            bend = (x - (self.x0 + self.x1) / 2) * nx + (y - (self.y0 + self.y1) / 2) * ny
+            self.bend = 0.0 if abs(bend) < 4 else bend   # snap back to straight
+        elif key == "p0":
             if constrain:
                 x, y = geometry.constrain_angle(self.x1, self.y1, x, y)
             self.x0, self.y0 = x, y
@@ -259,40 +351,111 @@ class LineShape(Shape):
             self.set_end(x, y, constrain)
 
     def hit(self, x, y, tol):
-        return _seg_distance(x, y, self.x0, self.y0, self.x1, self.y1) <= tol + self.width
+        pts = self.points()
+        return any(_seg_distance(x, y, *pts[i], *pts[i + 1]) <= tol + self.width for i in range(len(pts) - 1))
+
+    # -- arrows ----------------------------------------------------------------
+
+    def _head_len(self, length):
+        if self.head == "standard":
+            return min(length * 0.8, max(16, self.width * 4.6))
+        return min(length * 0.6, max(12, self.width * 3.6))
+
+    def _direction(self, at_start=False):
+        """Unit direction the arrow points at its tip (or start)."""
+        cx, cy = self.control()
+        if at_start:
+            dx, dy = self.x0 - cx, self.y0 - cy
+        else:
+            dx, dy = self.x1 - cx, self.y1 - cy
+        d = math.hypot(dx, dy)
+        if d < 1e-6:
+            return 0.0, 0.0
+        return dx / d, dy / d
 
     def arrow_polygon(self):
-        x0, y0, x1, y1 = self.x0, self.y0, self.x1, self.y1
-        L = math.hypot(x1 - x0, y1 - y0)
-        if L < 1:
+        """Outline of the default tapered arrow, tail to tip and back."""
+        pts = self.points()
+        length = _length(pts)
+        if length < 1:
             return []
-        ux, uy = (x1 - x0) / L, (y1 - y0) / L
-        nx, ny = -uy, ux
         w = self.width
-        head_len = min(L * 0.8, max(16, w * 4.6))
+        head_len = self._head_len(length)
         head_half = head_len * 0.5
         tail_half = max(0.75, w * 0.18)
         shaft_half = max(1.0, w * 0.55)
-        bx, by = x1 - ux * head_len * 0.78, y1 - uy * head_len * 0.78
-        cx, cy = x1 - ux * head_len, y1 - uy * head_len
-        return [
-            (x0 + nx * tail_half, y0 + ny * tail_half),
-            (bx + nx * shaft_half, by + ny * shaft_half),
-            (cx + nx * head_half, cy + ny * head_half),
-            (x1, y1),
-            (cx - nx * head_half, cy - ny * head_half),
-            (bx - nx * shaft_half, by - ny * shaft_half),
-            (x0 - nx * tail_half, y0 - ny * tail_half),
-        ]
+        ux, uy = self._direction()
+        nx, ny = -uy, ux
+        tx, ty = self.x1, self.y1
+        cx, cy = tx - ux * head_len, ty - uy * head_len
+        shaft = _trim_end(pts, head_len * 0.78)
+        total = _length(shaft) or 1
+        left, right, run = [], [], 0.0
+        for i, (px, py) in enumerate(shaft):
+            if i:
+                run += math.hypot(px - shaft[i - 1][0], py - shaft[i - 1][1])
+            a = shaft[max(0, i - 1)]
+            b = shaft[min(len(shaft) - 1, i + 1)]
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            d = math.hypot(dx, dy) or 1
+            sx, sy = -dy / d, dx / d
+            half = tail_half + (shaft_half - tail_half) * run / total
+            left.append((px + sx * half, py + sy * half))
+            right.append((px - sx * half, py - sy * half))
+        return left + [(cx + nx * head_half, cy + ny * head_half), (tx, ty),
+                       (cx - nx * head_half, cy - ny * head_half)] + right[::-1]
+
+    def _head(self, cr, color, at_start=False):
+        """Triangular (or open) head at the tip / start."""
+        ux, uy = self._direction(at_start)
+        nx, ny = -uy, ux
+        tx, ty = (self.x0, self.y0) if at_start else (self.x1, self.y1)
+        head_len = self._head_len(_length(self.points()))
+        half = head_len * (0.62 if self.head == "open" else 0.5)
+        cx, cy = tx - ux * head_len, ty - uy * head_len
+        cr.set_source_rgba(*color)
+        cr.set_dash([])
+        cr.move_to(cx + nx * half, cy + ny * half)
+        cr.line_to(tx, ty)
+        cr.line_to(cx - nx * half, cy - ny * half)
+        if self.head == "open":
+            cr.set_line_width(max(2.0, self.width))
+            cr.set_line_cap(cairo.LINE_CAP_ROUND)
+            cr.set_line_join(cairo.LINE_JOIN_ROUND)
+            cr.stroke()
+        else:
+            cr.close_path()
+            cr.set_line_join(cairo.LINE_JOIN_ROUND)
+            cr.set_line_width(max(1.0, self.width * 0.25))
+            cr.fill_preserve()
+            cr.stroke()
+
+    def _stroke(self, cr, pts, color, width):
+        if len(pts) < 2:
+            return
+        cr.set_source_rgba(*color)
+        cr.set_line_width(width)
+        cr.set_line_cap(cairo.LINE_CAP_ROUND)
+        cr.set_line_join(cairo.LINE_JOIN_ROUND)
+        set_dash(cr, self.dash, width)
+        cr.move_to(*pts[0])
+        for p in pts[1:]:
+            cr.line_to(*p)
+        cr.stroke()
+        cr.set_dash([])
 
     def draw(self, cr, doc, color):
-        cr.set_source_rgba(*color)
-        if self.kind == "arrow":
-            pts = self.arrow_polygon()
-            if not pts:
+        pts = self.points()
+        if self.kind != "arrow":
+            self._stroke(cr, pts, color, self.width)
+            return
+        if self.head == "standard" and self.dash == "solid":
+            poly = self.arrow_polygon()
+            if not poly:
                 return
-            cr.move_to(*pts[0])
-            for p in pts[1:]:
+            cr.set_source_rgba(*color)
+            cr.move_to(*poly[0])
+            for p in poly[1:]:
                 cr.line_to(*p)
             cr.close_path()
             cr.set_line_join(cairo.LINE_JOIN_ROUND)
@@ -300,11 +463,39 @@ class LineShape(Shape):
             cr.fill_preserve()
             cr.stroke()
             return
-        cr.set_line_width(self.width)
-        cr.set_line_cap(cairo.LINE_CAP_ROUND)
-        cr.move_to(self.x0, self.y0)
-        cr.line_to(self.x1, self.y1)
-        cr.stroke()
+        length = _length(pts)
+        if length < 1:
+            return
+        # Stop the shaft inside the head so its end doesn't poke out.
+        inset = 0 if self.head == "open" else self._head_len(length) * 0.6
+        shaft = _trim_end(pts, inset)
+        if self.head == "double":
+            shaft = _trim_end(shaft[::-1], inset)[::-1]
+        self._stroke(cr, shaft, color, max(2.0, self.width * (1.1 if self.head == "standard" else 1.0)))
+        self._head(cr, color)
+        if self.head == "double":
+            self._head(cr, color, at_start=True)
+
+
+def _length(pts):
+    return sum(math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]) for i in range(len(pts) - 1))
+
+
+def _trim_end(pts, dist):
+    """The polyline with `dist` of its length removed from the end."""
+    if dist <= 0 or len(pts) < 2:
+        return list(pts)
+    out = list(pts)
+    while len(out) >= 2 and dist > 0:
+        (ax, ay), (bx, by) = out[-2], out[-1]
+        seg = math.hypot(bx - ax, by - ay)
+        if seg > dist:
+            t = (seg - dist) / seg
+            out[-1] = (ax + (bx - ax) * t, ay + (by - ay) * t)
+            return out
+        dist -= seg
+        out.pop()
+    return out if len(out) >= 2 else list(pts[:1]) * 2
 
 
 class PathShape(Shape):
@@ -361,6 +552,8 @@ class PathShape(Shape):
         cr.set_line_width(self.stroke_width())
         cr.set_line_cap(cairo.LINE_CAP_ROUND)
         cr.set_line_join(cairo.LINE_JOIN_ROUND)
+        if self.kind == "pen":
+            set_dash(cr, self.dash, self.stroke_width())
         cr.move_to(*pts[0])
         # Quadratic smoothing through segment midpoints.
         for i in range(1, len(pts) - 1):
@@ -517,6 +710,124 @@ class CounterShape(Shape):
         PangoCairo.show_layout(cr, layout)
 
 
+class MagnifierShape(Shape):
+    """A round lens showing what is under it, enlarged. Drawn from the
+    document's own layers, so pixelated/blurred areas stay redacted."""
+
+    kind = "magnify"
+
+    def __init__(self, x, y, radius=0.0, zoom=2, **kw):
+        super().__init__(**kw)
+        self.x, self.y = x, y
+        self.radius = radius
+        self.zoom = zoom
+
+    def bbox(self):
+        r = self.radius + self.width / 2
+        return (self.x - r, self.y - r, 2 * r, 2 * r)
+
+    def is_degenerate(self):
+        return self.radius < 6
+
+    def set_end(self, x, y, constrain=False):
+        self.radius = math.hypot(x - self.x, y - self.y)
+
+    def translate(self, dx, dy):
+        self.x += dx
+        self.y += dy
+
+    def handles(self):
+        d = self.radius / math.sqrt(2)
+        return [("r", self.x + d, self.y + d)]
+
+    def move_handle(self, key, x, y, constrain=False):
+        self.set_end(x, y)
+
+    def hit(self, x, y, tol):
+        return math.hypot(x - self.x, y - self.y) <= self.radius + tol + self.width / 2
+
+    def draw(self, cr, doc, color):
+        if self.radius < 1:
+            return
+        cr.arc(self.x, self.y, self.radius, 0, 2 * math.pi)
+        if color != self.color:           # shadow pass
+            cr.set_source_rgba(*color)
+            cr.fill()
+            return
+        cr.save()
+        cr.clip()
+        cr.translate(self.x, self.y)
+        cr.scale(self.zoom, self.zoom)
+        cr.translate(-self.x, -self.y)
+        doc.render_layers(cr, upto=self)
+        cr.restore()
+        cr.arc(self.x, self.y, self.radius, 0, 2 * math.pi)
+        cr.set_source_rgba(*color)
+        cr.set_line_width(max(2.0, self.width))
+        cr.stroke()
+
+
+class ImageShape(Shape):
+    """A pasted / inserted picture or emoji. Resizing keeps its proportions."""
+
+    kind = "image"
+
+    def __init__(self, surface, x, y, w=None, h=None, **kw):
+        super().__init__(**kw)
+        self.surface = surface
+        self.x, self.y = x, y
+        self.w = float(w or surface.get_width())
+        self.h = float(h or surface.get_height())
+
+    def __deepcopy__(self, memo):
+        # The pixels never change: share them between copies (undo, paste).
+        clone = ImageShape.__new__(ImageShape)
+        clone.__dict__.update({k: (v if k == "surface" else copy.deepcopy(v, memo))
+                               for k, v in self.__dict__.items()})
+        return clone
+
+    def bbox(self):
+        return (self.x, self.y, self.w, self.h)
+
+    def is_degenerate(self):
+        return self.w < 2 or self.h < 2
+
+    def translate(self, dx, dy):
+        self.x += dx
+        self.y += dy
+
+    def handles(self):
+        x, y, w, h = self.bbox()
+        return [("tl", x, y), ("tr", x + w, y), ("bl", x, y + h), ("br", x + w, y + h)]
+
+    def move_handle(self, key, x, y, constrain=False):
+        # Anchor the opposite corner; the width follows the pointer.
+        ax = self.x + self.w if "l" in key else self.x
+        ay = self.y + self.h if "t" in key else self.y
+        aspect = self.h / self.w if self.w else 1
+        w = max(8.0, abs(x - ax))
+        h = w * aspect
+        self.w, self.h = w, h
+        self.x = ax - w if "l" in key else ax
+        self.y = ay - h if "t" in key else ay
+
+    def draw(self, cr, doc, color):
+        sw, sh = self.surface.get_width(), self.surface.get_height()
+        if self.w < 1 or self.h < 1 or sw < 1 or sh < 1:
+            return
+        cr.save()
+        cr.translate(self.x, self.y)
+        cr.scale(self.w / sw, self.h / sh)
+        if color != self.color:           # shadow pass: the picture's silhouette
+            cr.set_source_rgba(*color)
+            cr.mask_surface(self.surface, 0, 0)
+        else:
+            cr.set_source_surface(self.surface, 0, 0)
+            cr.get_source().set_filter(cairo.FILTER_GOOD)
+            cr.paint()
+        cr.restore()
+
+
 class Document:
     def __init__(self, pixbuf):
         self.base = pixbuf
@@ -631,18 +942,27 @@ class Document:
         cr.save()
         rounded_rect(cr, ix, iy, iw, ih, radius)
         cr.clip()
+        self.render_layers(cr, skip=skip)
+        cr.restore()
+        cr.restore()
+
+    def render_layers(self, cr, skip=None, upto=None):
+        """The screenshot and its shapes in image coordinates. With `upto`
+        (a magnifier's view) only shapes below it, and no spotlight dimming;
+        pixelate and blur always apply so nothing redacted shows through."""
         cr.set_source_surface(self.base_surface(), 0, 0)
         cr.paint()
         for s in self.shapes:
             if s.kind in ("pixelate", "blur") and s is not skip:
                 s.render(cr, self)
-        self._render_spotlight(cr)
+        if upto is None:
+            self._render_spotlight(cr)
         for s in self.shapes:
+            if s is upto:
+                break
             if s.kind in ("pixelate", "blur", "spotlight") or s is skip:
                 continue
             s.render(cr, self)
-        cr.restore()
-        cr.restore()
 
     def _render_spotlight(self, cr):
         spots = [s for s in self.shapes if s.kind == "spotlight"]

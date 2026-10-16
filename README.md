@@ -61,6 +61,11 @@ A CleanShot X–inspired screenshot and screen‑recording tool for Fedora and K
 
 ### ✏️ Annotate
 - Arrow, rectangle, filled rectangle, ellipse, line
+- **Curved arrows** with tapered, classic, open or double heads
+- **Line styles**: solid, dashed, dotted, dash-dot
+- **Magnifier** to enlarge small details
+- **Insert images and emoji**, paste or drag them in
+- **Copy, paste and duplicate** shapes
 - **Text** in six styles, **numbered counters**
 - **Blur**, **pixelate** and **spotlight** to hide or highlight
 - Pen and highlighter, crop with aspect ratios
@@ -259,7 +264,7 @@ On Plasma these are registered natively, exactly like Spectacle's, and you can c
 | --- | --- | --- | --- | --- |
 | <kbd>V</kbd> | Select / move | | <kbd>Ctrl</kbd>+<kbd>Z</kbd> | Undo |
 | <kbd>A</kbd> | Arrow | | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> | Redo |
-| <kbd>R</kbd> | Rectangle | | <kbd>Ctrl</kbd>+<kbd>C</kbd> | Copy image |
+| <kbd>R</kbd> | Rectangle | | <kbd>Ctrl</kbd>+<kbd>C</kbd> | Copy image (and the selected shape) |
 | <kbd>Shift</kbd>+<kbd>R</kbd> | Filled rectangle | | <kbd>Ctrl</kbd>+<kbd>S</kbd> | Save to Screenshots |
 | <kbd>O</kbd> | Ellipse | | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd> | Save as… |
 | <kbd>L</kbd> | Line | | <kbd>Ctrl</kbd>+<kbd>Enter</kbd> | Done (save & close) |
@@ -269,7 +274,11 @@ On Plasma these are registered natively, exactly like Spectacle's, and you can c
 | <kbd>S</kbd> | Spotlight | | <kbd>Shift</kbd> while drawing | Snap angles / squares |
 | <kbd>N</kbd> | Counter | | <kbd>Ctrl</kbd>+scroll | Zoom |
 | <kbd>D</kbd> / <kbd>H</kbd> | Pen / highlighter | | <kbd>Ctrl</kbd>+<kbd>0</kbd> | Fit to window |
-| <kbd>C</kbd> | Crop | | <kbd>Esc</kbd> | Deselect / close |
+| <kbd>M</kbd> | Magnifier | | <kbd>Ctrl</kbd>+<kbd>V</kbd> | Paste shape, image or image file |
+| <kbd>C</kbd> | Crop | | <kbd>Ctrl</kbd>+<kbd>D</kbd> | Duplicate selection |
+| | | | <kbd>Esc</kbd> | Deselect / close |
+
+Drag the round handle in the middle of an arrow or line to curve it. Right-click a shape for copy, paste, duplicate and delete. Drop an image file onto the canvas to add it.
 
 </details>
 
@@ -422,6 +431,8 @@ tests/                unit tests
 
 - [x] GitHub Releases with ready-to-install RPMs
 - [x] Copr repository for one-line installs and automatic updates
+- [x] Capture History
+- [x] Curved arrows, line styles, magnifier, images and emoji in annotations
 - [ ] Verified GNOME support
 - [ ] Keystroke overlay for recordings
 - [ ] Cloud / custom-server upload

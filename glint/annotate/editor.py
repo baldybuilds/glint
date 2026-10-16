@@ -1,5 +1,6 @@
 """The annotation editor window."""
 
+import copy
 import math
 import os
 
@@ -8,22 +9,31 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gdk, Gio, GLib, GObject, Gtk  # noqa: E402
 
 from .. import geometry, naming, paths, system  # noqa: E402
 from . import background as bgmod  # noqa: E402
-from .model import (PALETTE, TEXT_STYLES, TOOLS, BoxShape, CounterShape, Document,  # noqa: E402
-                    LineShape, PathShape, TextShape)
+from .model import (ARROW_HEADS, DASHABLE, LINE_STYLES, MAGNIFY_ZOOMS, PALETTE, TEXT_STYLES,  # noqa: E402
+                    TOOLS, BoxShape, CounterShape, Document, ImageShape, LineShape, MagnifierShape, PathShape,
+                    TextShape, emoji_surface, surface_from_pixbuf)
 
 HANDLE = 5          # handle radius in screen px
 HIT_TOL = 6         # hit tolerance in screen px
 CROP_RATIOS = [("Free", 0), ("Original", -1), ("1:1", 1), ("4:3", 4 / 3), ("3:2", 3 / 2),
                ("16:9", 16 / 9), ("9:16", 9 / 16)]
 BOX_TOOLS = ("rect", "filled", "ellipse", "pixelate", "blur", "spotlight")
+# Marks Glint shapes on the clipboard (next to a PNG of the whole image).
+SHAPE_MIME = "application/x-glint-annotation"
+PASTE_OFFSET = 20
 
 
 def _icon(tool):
     return f"glint-tool-{tool}-symbolic"
+
+
+def _index(options, value):
+    ids = [option_id for option_id, _label in options]
+    return ids.index(value) if value in ids else 0
 
 
 class AnnotateWindow(Adw.ApplicationWindow):
@@ -43,7 +53,12 @@ class AnnotateWindow(Adw.ApplicationWindow):
         self.counter_style = self.cfg.get("annotate.counter_style")
         self.intensity = self.cfg.get("annotate.pixelate_intensity")
         self.shadow = self.cfg.get("annotate.draw_shadow")
+        self.line_style = self.cfg.get("annotate.line_style")
+        self.arrow_head = self.cfg.get("annotate.arrow_head")
+        self.magnify_zoom = self.cfg.get("annotate.magnify_zoom")
         self.crop_ratio = 0
+        self._syncing = False
+        self._paste_count = 0
 
         self.undo_stack = []
         self.redo_stack = []
@@ -61,6 +76,16 @@ class AnnotateWindow(Adw.ApplicationWindow):
         self._build_ui()
         self._select_tool(self.tool)
         self.connect("close-request", self._on_close_request)
+
+    @property
+    def selected(self):
+        return self._selected
+
+    @selected.setter
+    def selected(self, shape):
+        self._selected = shape
+        if hasattr(self, "line_box"):
+            self._refresh_options()
 
     # -- UI construction -----------------------------------------------------
 
@@ -121,12 +146,26 @@ class AnnotateWindow(Adw.ApplicationWindow):
         copy_btn.connect("clicked", lambda *_: self.copy())
         header.pack_end(copy_btn)
 
+        insert_menu = Gio.Menu()
+        insert_menu.append("Image from File…", "win.insert-image")
+        insert_menu.append("Emoji…", "win.insert-emoji")
+        insert_menu.append("Paste", "win.paste")
+        self.insert_btn = Gtk.MenuButton(icon_name="insert-image-symbolic", menu_model=insert_menu,
+                                         tooltip_text="Insert image or emoji")
+        header.pack_end(self.insert_btn)
+        self.emoji_chooser = Gtk.EmojiChooser()
+        self.emoji_chooser.set_parent(self.insert_btn)
+        self.emoji_chooser.connect("emoji-picked", lambda _c, text: self.insert_emoji(text))
+
         self.bg_btn = Gtk.ToggleButton(icon_name="glint-tool-background-symbolic", tooltip_text="Background")
         self.bg_btn.connect("toggled", self._on_bg_toggled)
         header.pack_end(self.bg_btn)
 
         for name, cb in (("save-as", self.save_as), ("save-copy", self.save_copy),
-                         ("pin", self.pin), ("ocr", self.ocr)):
+                         ("pin", self.pin), ("ocr", self.ocr),
+                         ("insert-image", self.choose_image), ("insert-emoji", self.emoji_chooser.popup),
+                         ("paste", self.paste), ("copy-shape", self.copy), ("duplicate", self.duplicate),
+                         ("delete", self.delete_selected)):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", lambda *_a, f=cb: f())
             self.add_action(action)
@@ -151,6 +190,28 @@ class AnnotateWindow(Adw.ApplicationWindow):
         click.set_button(1)
         click.connect("pressed", self._on_click)
         self.canvas.add_controller(click)
+
+        menu_click = Gtk.GestureClick()
+        menu_click.set_button(3)
+        menu_click.connect("pressed", self._on_context_menu)
+        self.canvas.add_controller(menu_click)
+        shape_menu = Gio.Menu()
+        edit_section = Gio.Menu()
+        edit_section.append("Copy", "win.copy-shape")
+        edit_section.append("Paste", "win.paste")
+        edit_section.append("Duplicate", "win.duplicate")
+        shape_menu.append_section(None, edit_section)
+        delete_section = Gio.Menu()
+        delete_section.append("Delete", "win.delete")
+        shape_menu.append_section(None, delete_section)
+        self.context_menu = Gtk.PopoverMenu.new_from_model(shape_menu)
+        self.context_menu.set_parent(self.canvas)
+        self.context_menu.set_has_arrow(False)
+
+        drop = Gtk.DropTarget.new(GObject.TYPE_NONE, Gdk.DragAction.COPY)
+        drop.set_gtypes([Gdk.FileList, Gdk.Texture])
+        drop.connect("drop", self._on_drop)
+        self.canvas.add_controller(drop)
 
         motion = Gtk.EventControllerMotion()
         motion.connect("motion", self._on_motion)
@@ -233,6 +294,25 @@ class AnnotateWindow(Adw.ApplicationWindow):
         self.width_scale.connect("value-changed", self._on_width_changed)
         self.width_box = self._labeled("Size", self.width_scale)
         bar.pack_start(self.width_box)
+
+        self.line_drop = Gtk.DropDown.new_from_strings([label for _id, label in LINE_STYLES])
+        self.line_drop.set_selected(_index(LINE_STYLES, self.line_style))
+        self.line_drop.connect("notify::selected", self._on_line_style)
+        self.line_box = self._labeled("Line", self.line_drop)
+        bar.pack_start(self.line_box)
+
+        self.head_drop = Gtk.DropDown.new_from_strings([label for _id, label in ARROW_HEADS])
+        self.head_drop.set_selected(_index(ARROW_HEADS, self.arrow_head))
+        self.head_drop.connect("notify::selected", self._on_arrow_head)
+        self.head_box = self._labeled("Arrow", self.head_drop)
+        bar.pack_start(self.head_box)
+
+        self.zoom_drop = Gtk.DropDown.new_from_strings([f"{z}×" for z in MAGNIFY_ZOOMS])
+        self.zoom_drop.set_selected(MAGNIFY_ZOOMS.index(self.magnify_zoom) if self.magnify_zoom in MAGNIFY_ZOOMS
+                                    else 0)
+        self.zoom_drop.connect("notify::selected", self._on_magnify_zoom)
+        self.zoom_box = self._labeled("Zoom", self.zoom_drop)
+        bar.pack_start(self.zoom_box)
 
         self.style_drop = Gtk.DropDown.new_from_strings([label for _id, label in TEXT_STYLES])
         self.style_drop.set_selected([i for i, (sid, _l) in enumerate(TEXT_STYLES) if sid == self.text_style][0]
@@ -501,15 +581,64 @@ class AnnotateWindow(Adw.ApplicationWindow):
         if tool_id == "crop":
             self.selected = None
             self.fit = True
-        self.width_box.set_visible(tool_id not in ("pixelate", "blur", "spotlight", "crop"))
-        self.style_box.set_visible(tool_id == "text")
-        self.counter_box.set_visible(tool_id == "counter")
-        self.intensity_box.set_visible(tool_id in ("pixelate", "blur"))
-        self.opacity_box.set_visible(tool_id == "spotlight")
-        self.crop_box.set_visible(tool_id == "crop")
+        self._refresh_options()
         cursor = {"select": "default", "text": "text", "crop": "crosshair"}.get(tool_id, "crosshair")
         self.canvas.set_cursor_from_name(cursor)
         self.canvas.queue_draw()
+
+    def _refresh_options(self):
+        """Show the options for the current tool, or for the selected shape
+        (so e.g. an arrow's head can be changed with the Select tool)."""
+        tool = self.tool
+        sel = self.selected.kind if self.selected is not None else None
+        kinds = {tool, sel}
+        self.width_box.set_visible(tool not in ("pixelate", "blur", "spotlight", "crop"))
+        self.style_box.set_visible(tool == "text")
+        self.counter_box.set_visible(tool == "counter")
+        self.intensity_box.set_visible(tool in ("pixelate", "blur"))
+        self.opacity_box.set_visible(tool == "spotlight")
+        self.crop_box.set_visible(tool == "crop")
+        self.line_box.set_visible(bool(kinds & set(DASHABLE)))
+        self.head_box.set_visible("arrow" in kinds)
+        self.zoom_box.set_visible("magnify" in kinds)
+        if self.selected is not None:
+            self._syncing = True
+            if sel in DASHABLE:
+                self.line_drop.set_selected(_index(LINE_STYLES, self.selected.dash))
+            if sel == "arrow":
+                self.head_drop.set_selected(_index(ARROW_HEADS, self.selected.head))
+            if sel == "magnify" and self.selected.zoom in MAGNIFY_ZOOMS:
+                self.zoom_drop.set_selected(MAGNIFY_ZOOMS.index(self.selected.zoom))
+            self._syncing = False
+
+    def _apply_to_selected(self, kinds, attr, value):
+        sel = self.selected
+        if self._syncing or sel is None or sel.kind not in kinds or getattr(sel, attr) == value:
+            return
+        self._push_undo()
+        setattr(sel, attr, value)
+        self.canvas.queue_draw()
+
+    def _on_line_style(self, drop, _pspec):
+        if self._syncing:
+            return
+        self.line_style = LINE_STYLES[drop.get_selected()][0]
+        self.cfg.set("annotate.line_style", self.line_style)
+        self._apply_to_selected(DASHABLE, "dash", self.line_style)
+
+    def _on_arrow_head(self, drop, _pspec):
+        if self._syncing:
+            return
+        self.arrow_head = ARROW_HEADS[drop.get_selected()][0]
+        self.cfg.set("annotate.arrow_head", self.arrow_head)
+        self._apply_to_selected(("arrow",), "head", self.arrow_head)
+
+    def _on_magnify_zoom(self, drop, _pspec):
+        if self._syncing:
+            return
+        self.magnify_zoom = MAGNIFY_ZOOMS[drop.get_selected()]
+        self.cfg.set("annotate.magnify_zoom", self.magnify_zoom)
+        self._apply_to_selected(("magnify",), "zoom", self.magnify_zoom)
 
     def _set_color(self, color):
         self.color = tuple(color)
@@ -742,15 +871,18 @@ class AnnotateWindow(Adw.ApplicationWindow):
         self.canvas.queue_draw()
 
     def _new_shape(self, ix, iy):
-        common = dict(color=self.color, width=self.width, shadow=self.shadow)
         t = self.tool
+        common = dict(color=self.color, width=self.width, shadow=self.shadow,
+                      dash=self.line_style if t in DASHABLE else "solid")
         if t in BOX_TOOLS:
             return BoxShape(t, ix, iy, intensity=self.intensity,
                             ellipse=(t == "spotlight" and self.spot_shape.get_selected() == 1), **common)
         if t in ("line", "arrow"):
-            return LineShape(t, ix, iy, **common)
+            return LineShape(t, ix, iy, head=self.arrow_head, **common)
         if t in ("pen", "marker"):
             return PathShape(t, ix, iy, **common)
+        if t == "magnify":
+            return MagnifierShape(ix, iy, zoom=self.magnify_zoom, **common)
         if t == "counter":
             return CounterShape(ix, iy, number=self.doc.next_counter(), style=self.counter_style, **common)
         raise ValueError(t)
@@ -956,6 +1088,10 @@ class AnnotateWindow(Adw.ApplicationWindow):
                 self.undo()
             elif lower == "c":
                 self.copy()
+            elif lower == "v":
+                self.paste()
+            elif lower == "d":
+                self.duplicate()
             elif lower == "s":
                 self.save_as() if shift else self.save_copy()
             elif name in ("Return", "KP_Enter"):
@@ -971,12 +1107,7 @@ class AnnotateWindow(Adw.ApplicationWindow):
                 return False
             return True
         if name in ("Delete", "BackSpace") and self.selected is not None:
-            self._push_undo()
-            if self.selected in self.doc.shapes:
-                self.doc.shapes.remove(self.selected)
-            self.doc.renumber_counters()
-            self.selected = None
-            self.canvas.queue_draw()
+            self.delete_selected()
             return True
         if name == "Escape":
             if self._crop_mode():
@@ -1017,10 +1148,185 @@ class AnnotateWindow(Adw.ApplicationWindow):
         self.toasts.add_toast(Adw.Toast(title=text, timeout=2))
 
     def copy(self):
+        """Copy the image. With a shape selected, the shape comes along too:
+        Ctrl+V in an editor pastes the shape, other apps get the image."""
         self._commit_text()
         path = self._export_temp()
-        system.copy_image(path)
-        self._toast("Copied to clipboard")
+        shape = self.selected if self.selected in self.doc.shapes else None
+        if shape is None:
+            system.copy_image(path)
+            self._toast("Copied to clipboard")
+            return
+        self.app.annotation_clipboard = copy.deepcopy(shape)
+        self._paste_count = 0
+        providers = [Gdk.ContentProvider.new_for_bytes(SHAPE_MIME, GLib.Bytes.new(b"glint")),
+                     Gdk.ContentProvider.new_for_value(Gdk.Texture.new_from_filename(path))]
+        self.get_clipboard().set_content(Gdk.ContentProvider.new_union(providers))
+        self._toast("Shape copied. Ctrl+V pastes it; other apps get the whole image")
+
+    # -- editing shapes ------------------------------------------------------
+
+    def _add_shape(self, shape, select=True):
+        self._push_undo()
+        self.doc.shapes.append(shape)
+        if shape.kind == "counter":
+            self.doc.renumber_counters()
+        if select:
+            if self.tool == "crop":
+                self._select_tool("select")
+            self.selected = shape
+        self.canvas.queue_draw()
+
+    def _keep_on_image(self, shape):
+        """Move a pasted shape back onto the image if it landed off it."""
+        x, y, w, h = shape.bbox()
+        ix, iy, iw, ih = self.doc.image_rect()
+        cx, cy = x + w / 2, y + h / 2
+        if not (ix <= cx <= ix + iw and iy <= cy <= iy + ih):
+            shape.translate(ix + iw / 2 - cx, iy + ih / 2 - cy)
+
+    def duplicate(self):
+        self._commit_text()
+        if self.selected not in self.doc.shapes:
+            return
+        clone = copy.deepcopy(self.selected)
+        clone.translate(PASTE_OFFSET, PASTE_OFFSET)
+        self._keep_on_image(clone)
+        self._add_shape(clone)
+
+    def delete_selected(self):
+        if self.selected not in self.doc.shapes:
+            return
+        self._push_undo()
+        self.doc.shapes.remove(self.selected)
+        self.doc.renumber_counters()
+        self.selected = None
+        self.canvas.queue_draw()
+
+    def paste(self):
+        """Paste a copied shape, an image, or an image file."""
+        self._commit_text()
+        clipboard = self.get_clipboard()
+        formats = clipboard.get_formats()
+        stored = getattr(self.app, "annotation_clipboard", None)
+        if stored is not None and clipboard.is_local() and formats.contain_mime_type(SHAPE_MIME):
+            self._paste_count += 1
+            clone = copy.deepcopy(stored)
+            clone.translate(PASTE_OFFSET * self._paste_count, PASTE_OFFSET * self._paste_count)
+            self._keep_on_image(clone)
+            self._add_shape(clone)
+            return
+        if formats.contain_gtype(Gdk.FileList) or formats.contain_mime_type("text/uri-list"):
+            def got_files(cb, res):
+                try:
+                    files = cb.read_value_finish(res)
+                except GLib.Error:
+                    files = None
+                paths_ = [f.get_path() for f in files.get_files()] if files else []
+                if not any(self.insert_image_file(p) for p in paths_ if p):
+                    self._toast("Nothing to paste: the copied file isn't an image")
+            clipboard.read_value_async(Gdk.FileList, GLib.PRIORITY_DEFAULT, None, got_files)
+            return
+        # Local content lists concrete types (GdkMemoryTexture), other apps' mime types.
+        if any(GObject.type_is_a(t, Gdk.Texture) for t in formats.get_gtypes() or []) or any(
+                formats.contain_mime_type(m) for m in ("image/png", "image/jpeg", "image/webp", "image/bmp")):
+            def got_texture(cb, res):
+                try:
+                    texture = cb.read_texture_finish(res)
+                except GLib.Error:
+                    texture = None
+                if texture is None:
+                    self._toast("Couldn't read the image on the clipboard")
+                    return
+                self.insert_texture(texture)
+            clipboard.read_texture_async(None, got_texture)
+            return
+        self._toast("Nothing to paste: copy an image or a shape first")
+
+    # -- inserting images and emoji ------------------------------------------
+
+    def _view_center(self):
+        """Image coordinates of the middle of what's on screen."""
+        cx, cy = self.to_image(self.canvas.get_width() / 2, self.canvas.get_height() / 2)
+        ix, iy, iw, ih = self.doc.image_rect()
+        return min(max(cx, ix), ix + iw), min(max(cy, iy), iy + ih)
+
+    def insert_surface(self, surface, at=None, max_fraction=0.4, size=None):
+        iw, ih = self.doc.image_rect()[2:]
+        sw, sh = surface.get_width(), surface.get_height()
+        if size:
+            scale = size / max(sw, sh)
+        else:
+            scale = min(1.0, iw * max_fraction / sw, ih * max_fraction / sh)
+        w, h = sw * scale, sh * scale
+        cx, cy = at or self._view_center()
+        self._add_shape(ImageShape(surface, cx - w / 2, cy - h / 2, w, h, color=self.color, width=self.width,
+                                   shadow=self.shadow))
+
+    def insert_texture(self, texture, at=None):
+        tmp = os.path.join(paths.captures_cache_dir(), f"insert-{GLib.get_real_time()}.png")
+        texture.save_to_png(tmp)
+        try:
+            self.insert_surface(cairo.ImageSurface.create_from_png(tmp), at)
+        finally:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+    def insert_image_file(self, path, at=None):
+        try:
+            surface = surface_from_pixbuf(system.load_pixbuf(path))
+        except GLib.Error:
+            return False
+        self.insert_surface(surface, at)
+        return True
+
+    def insert_emoji(self, text):
+        iw, ih = self.doc.image_rect()[2:]
+        size = min(256, max(48, min(iw, ih) * 0.18))
+        self.insert_surface(emoji_surface(text), size=size)
+
+    def choose_image(self):
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        images = Gtk.FileFilter(name="Images")
+        images.add_pixbuf_formats()
+        filters.append(images)
+        dialog = Gtk.FileDialog(title="Insert Image", filters=filters)
+
+        def done(dlg, res):
+            try:
+                f = dlg.open_finish(res)
+            except GLib.Error:
+                return
+            if f and not self.insert_image_file(f.get_path()):
+                self._toast("That file isn't an image Glint can open")
+
+        dialog.open(self, None, done)
+
+    def _on_drop(self, _target, value, x, y):
+        at = self.to_image(x, y)
+        if isinstance(value, Gdk.Texture):
+            self.insert_texture(value, at)
+            return True
+        if isinstance(value, Gdk.FileList):
+            return any(self.insert_image_file(f.get_path(), at) for f in value.get_files() if f.get_path())
+        return False
+
+    def _on_context_menu(self, _gesture, _n, x, y):
+        self._commit_text()
+        ix, iy = self.to_image(x, y)
+        hit = self.doc.shape_at(ix, iy, HIT_TOL / self.scale)
+        if hit is not None:
+            self.selected = hit
+            self.canvas.queue_draw()
+        has = self.selected in self.doc.shapes
+        for name in ("copy-shape", "duplicate", "delete"):
+            self.lookup_action(name).set_enabled(has)
+        rect = Gdk.Rectangle()
+        rect.x, rect.y, rect.width, rect.height = int(x), int(y), 1, 1
+        self.context_menu.set_pointing_to(rect)
+        self.context_menu.popup()
 
     def _write(self, dest):
         fmt = "jpg" if dest.lower().endswith((".jpg", ".jpeg")) else "png"
