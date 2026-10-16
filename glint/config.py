@@ -61,6 +61,8 @@ DEFAULTS = {
     "recording": {
         "format": "mp4",           # mp4 | gif
         "fps": 30,
+        "quality": "standard",     # high | standard | small
+        "do_not_disturb": True,
         "gif_fps": 15,
         "gif_max_width": 1280,
         "show_cursor": True,

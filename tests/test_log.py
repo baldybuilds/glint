@@ -20,6 +20,13 @@ class LogTests(unittest.TestCase):
             self.assertRegex(line, r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d ")
         self.assertTrue(lines[1].endswith("second half"))
 
+    def test_colour_codes_kept_out_of_the_file(self):
+        console, logfile = io.StringIO(), io.StringIO()
+        tee = log.Tee(console, logfile)
+        tee.write("\x1b[1;35mKeyboardInterrupt\x1b[0m\n")
+        self.assertIn("\x1b[", console.getvalue())
+        self.assertTrue(logfile.getvalue().endswith(" KeyboardInterrupt\n"))
+
     def test_rotation(self):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "glint.log")

@@ -9,6 +9,7 @@ import gi
 gi.require_version("Gdk", "4.0")
 gi.require_version("GdkPixbuf", "2.0")
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib  # noqa: E402
+from . import APP_ID  # noqa: E402
 
 
 def have(cmd):
@@ -132,11 +133,56 @@ def play_sound(event_id="screen-capture"):
         spawn(["pw-play", fallback])
 
 
-def notify(app, title, body="", notification_id=None):
+def notify(app, title, body="", notification_id=None, buttons=()):
+    """Desktop notification. `buttons` are (label, glint command) pairs, run
+    through the app's "run-command" action when clicked."""
     n = Gio.Notification.new(title)
     if body:
         n.set_body(body)
+    for label, command in buttons:
+        n.add_button_with_target_value(label, "app.run-command", GLib.Variant("s", command))
     app.send_notification(notification_id, n)
+
+
+class NotificationInhibitor:
+    """Do Not Disturb for the duration of a recording, via the notification
+    server's Inhibit/UnInhibit (KDE Plasma). The server lifts it by itself if
+    Glint exits without releasing it. A no-op where unsupported."""
+
+    def __init__(self):
+        self.cookie = None
+
+    def _call(self, method, args, reply=None):
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+        return bus.call_sync("org.freedesktop.Notifications", "/org/freedesktop/Notifications",
+                             "org.freedesktop.Notifications", method, args,
+                             GLib.VariantType.new(reply) if reply else None, Gio.DBusCallFlags.NONE, 2000, None)
+
+    def inhibit(self, reason):
+        if self.cookie is not None:
+            return True
+        try:
+            self.cookie = self._call("Inhibit", GLib.Variant("(ssa{sv})", (APP_ID, reason, {})), "(u)")[0]
+            return True
+        except GLib.Error as exc:
+            print(f"glint: Do Not Disturb unavailable: {exc.message}")
+            return False
+
+    def release(self):
+        if self.cookie is None:
+            return
+        try:
+            self._call("UnInhibit", GLib.Variant("(u)", (self.cookie,)))
+        except GLib.Error:
+            pass
+        self.cookie = None
+
+
+def display_dir(path):
+    """A folder as people say it: "~/Pictures/Screenshots"."""
+    home = os.path.expanduser("~")
+    path = os.path.dirname(path)
+    return "~" + path[len(home):] if path == home or path.startswith(home + os.sep) else path
 
 
 # Files ---------------------------------------------------------------------------

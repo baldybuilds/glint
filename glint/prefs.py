@@ -261,9 +261,13 @@ class PreferencesDialog(Adw.PreferencesDialog):
         page = Adw.PreferencesPage(title="Recording", icon_name="media-record-symbolic")
         self._group(page, "Video", [
             self._combo("Frame rate", "recording.fps", [(24, "24 fps"), (30, "30 fps"), (60, "60 fps")]),
+            self._combo("Quality", "recording.quality",
+                        [("high", "High (larger files)"), ("standard", "Standard"), ("small", "Small files")]),
             self._switch("Show mouse pointer", "recording.show_cursor"),
             self._switch("Record microphone", "recording.record_mic"),
             self._switch("Record computer audio", "recording.record_system_audio"),
+            self._switch("Do Not Disturb while recording", "recording.do_not_disturb",
+                         "Hold notifications so they don't appear in the video"),
         ])
         self._group(page, "GIF", [
             self._spin("GIF frame rate", "recording.gif_fps", 5, 30),

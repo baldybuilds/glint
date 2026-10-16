@@ -276,7 +276,7 @@ class QuickAccessCard(Gtk.Window):
             system.copy_image(self.item.path)
         else:
             system.copy_file(self.item.file)
-        self.app.toast("Copied to clipboard")
+        system.notify(self.app, "Copied to the clipboard", "Paste it anywhere with Ctrl+V.", "toast")
         if self.app.config.get("quick_access.close_after_copy"):
             self.close_card()
 
@@ -289,7 +289,8 @@ class QuickAccessCard(Gtk.Window):
         self.item.path = dest
         self.item.saved = True
         self.save_btn.set_label("Show in Folder")
-        self.app.toast(f"Saved to {os.path.basename(dest)}")
+        system.notify(self.app, "Screenshot saved",
+                      f"Saved as {os.path.basename(dest)} in {system.display_dir(dest)}.", "toast")
         if self.app.config.get("quick_access.close_after_save"):
             self.close_card()
 

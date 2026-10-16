@@ -3,6 +3,23 @@
 All notable changes to Glint are listed here. Versions follow
 [Semantic Versioning](https://semver.org/); dates are YYYY-MM-DD.
 
+## [0.4.1] - 2026-10-16
+
+### Added
+- **Do Not Disturb while recording** (on by default): notifications are held
+  so they don't appear in your video, and come back when you stop.
+- **Recording quality**: High, Standard or Small files (Preferences →
+  Recording).
+- Notification buttons: **Open Capture History**, **Open Recordings Folder**
+  and **Show Log**, plus the `glint open-recordings-folder` and
+  `glint show-log` commands.
+
+### Fixed
+- Notifications showed `__main__.py` as the sender instead of Glint.
+- Notification messages now say what happened and what to do next, e.g.
+  where a capture was saved, or how to install a missing tool.
+- `glint.log` no longer contains terminal colour codes in tracebacks.
+
 ## [0.4.0] - 2026-10-16
 
 ### Added
@@ -87,6 +104,7 @@ All notable changes to Glint are listed here. Versions follow
   scrolling capture; self-timer; OCR; MP4/GIF recording; tray menu; CLI and
   `glint://` URLs; RPM packaging.
 
+[0.4.1]: https://github.com/baldybuilds/glint/releases/tag/v0.4.1
 [0.4.0]: https://github.com/baldybuilds/glint/releases/tag/v0.4.0
 [0.3.0]: https://github.com/baldybuilds/glint/releases/tag/v0.3.0
 [0.2.1]: https://github.com/baldybuilds/glint/releases/tag/v0.2.1

@@ -9,11 +9,14 @@ issue without digging through the systemd journal. The file is capped at
 import datetime
 import os
 import platform
+import re
 import sys
 
 from . import VERSION, paths
 
 MAX_BYTES = 1_000_000
+# Python colours tracebacks when started from a terminal; keep the file plain.
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
 def log_path():
@@ -40,7 +43,7 @@ class Tee:
             except (OSError, ValueError):
                 pass
         out = []
-        for chunk in text.splitlines(keepends=True):
+        for chunk in ANSI.sub("", text).splitlines(keepends=True):
             if self._line_start:
                 out.append(_stamp())
             out.append(chunk)

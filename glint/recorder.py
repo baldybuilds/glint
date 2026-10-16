@@ -20,12 +20,21 @@ def _have_element(name):
     return Gst.ElementFactory.find(name) is not None
 
 
-def video_encoder(fps):
+# Constant-quality x264 quantizer per quality setting (lower = better, bigger).
+QUANTIZER = {"high": 16, "standard": 21, "small": 27}
+# openh264 has no constant-quality mode: bits per pixel per frame instead.
+OPENH264_BPP = {"high": 0.20, "standard": 0.10, "small": 0.05}
+
+
+def video_encoder(fps, quality="standard", size=(1920, 1080)):
     if _have_element("x264enc"):
-        return (f"x264enc tune=zerolatency speed-preset=veryfast pass=quant quantizer=21 bframes=0 "
+        q = QUANTIZER.get(quality, QUANTIZER["standard"])
+        return (f"x264enc tune=zerolatency speed-preset=veryfast pass=quant quantizer={q} bframes=0 "
                 f"key-int-max={fps * 2}")
     if _have_element("openh264enc"):
-        return "openh264enc complexity=high rate-control=quality"
+        bpp = OPENH264_BPP.get(quality, OPENH264_BPP["standard"])
+        bitrate = int(size[0] * size[1] * fps * bpp)
+        return f"openh264enc complexity=high rate-control=bitrate bitrate={bitrate}"
     raise RuntimeError("No H.264 encoder found (install gstreamer1-plugins-ugly or openh264)")
 
 
@@ -37,13 +46,14 @@ def audio_encoder():
     return None
 
 
-def build_pipeline(fd, node_id, fps, out_path, mic=False, system_audio=False):
+def build_pipeline(fd, node_id, fps, out_path, mic=False, system_audio=False, quality="standard",
+                   size=(1920, 1080)):
     # The crop is configured once the stream's real size is known; see
     # screencast.apply_crop_when_ready().
     video = (f"pipewiresrc name=src fd={fd} path={node_id} do-timestamp=true always-copy=true keepalive-time=1000 "
              f"! queue ! videoconvert ! videocrop name=crop "
              f"! videorate ! video/x-raw,framerate={fps}/1 ! videoconvert ! video/x-raw,format=I420 "
-             f"! {video_encoder(fps)} ! h264parse ! queue ! mp4mux name=mux ! filesink location=\"{out_path}\"")
+             f"! {video_encoder(fps, quality, size)} ! h264parse ! queue ! mp4mux name=mux ! filesink location=\"{out_path}\"")
     sources = []
     if system_audio:
         sources.append("pulsesrc device=@DEFAULT_MONITOR@ do-timestamp=true")
@@ -107,6 +117,7 @@ class Recorder:
         self._stopping = False
         self._cancelled = False
         self.clicks = ClickHighlighter(self.cfg)
+        self.quiet = system.NotificationInhibitor()
         self.tmp_path = os.path.join(paths.cache_dir(), f"recording-{GLib.get_real_time()}.mp4")
 
     @property
@@ -130,7 +141,8 @@ class Recorder:
         try:
             desc = build_pipeline(self.session.fd, stream.node_id, fps, self.tmp_path,
                                   mic=self.cfg.get("recording.record_mic") and not gif,
-                                  system_audio=self.cfg.get("recording.record_system_audio") and not gif)
+                                  system_audio=self.cfg.get("recording.record_system_audio") and not gif,
+                                  quality=self.cfg.get("recording.quality"), size=tuple(self.rect[2:4]))
             self.pipeline = Gst.parse_launch(desc)
         except (GLib.Error, RuntimeError) as exc:
             self._finish(None, f"Could not build recording pipeline: {exc}")
@@ -147,6 +159,8 @@ class Recorder:
         if self.cfg.get("recording.highlight_clicks") and not self.clicks.enable():
             print("glint: click highlighting unavailable (needs KWin's Mouse Click Animation effect)")
         self._show_controls(monitor)
+        if self.cfg.get("recording.do_not_disturb"):
+            self.quiet.inhibit("Recording the screen")
         self._tick_id = GLib.timeout_add(500, self._tick)
         self.app.on_recording_state(True)
 
@@ -223,6 +237,7 @@ class Recorder:
 
     def _teardown(self):
         self.clicks.disable()
+        self.quiet.release()
         if self.pipeline is not None:
             self.pipeline.set_state(Gst.State.NULL)
             self.pipeline.get_bus().remove_signal_watch()

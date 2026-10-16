@@ -559,7 +559,8 @@ class TrimWindow(Adw.ApplicationWindow):
                 os.replace(tmp, dest)
             if self.on_saved:
                 self.on_saved(dest)
-            system.notify(self.app, "Video saved", os.path.basename(dest), "trim")
+            system.notify(self.app, "Video exported",
+                          f"Saved as {os.path.basename(dest)} in {system.display_dir(dest)}.", "trim")
             self.destroy()
 
         proc.wait_check_async(None, finished)

@@ -79,6 +79,13 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.4.1" date="2026-10-16">
+      <description>
+        <p>Notifications now come from Glint and explain what to do next.
+        Recordings can hold notifications (Do Not Disturb) and have a quality
+        setting.</p>
+      </description>
+    </release>
     <release version="0.4.0" date="2026-10-16">
       <description>
         <p>Capture History: browse, copy, annotate, pin or drag out your recent

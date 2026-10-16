@@ -32,6 +32,8 @@ COMMANDS = {
     "restore-recently-closed": "Re-open the last closed Quick Access item",
     "history": "Show capture history",
     "open-folder": "Open the screenshots folder",
+    "open-recordings-folder": "Open the recordings folder",
+    "show-log": "Show Glint's log file in the file manager",
     "set-default": "Make Glint the desktop's screenshot tool (takes over Print Screen)",
     "unset-default": "Give the screenshot shortcuts back to the desktop's own tool",
     "preferences": "Show preferences",
@@ -273,7 +275,9 @@ class GlintApp(Adw.Application):
         from .takeover import get_takeover
         takeover = get_takeover(self.config)
         if takeover is None or not takeover.restore():
-            system.notify(self, "Nothing to restore", "Glint isn't set as the screenshot tool.", "default-tool")
+            system.notify(self, "No screenshot shortcuts to restore",
+                          "Glint isn't set as your screenshot tool, so the original shortcuts are already in place.",
+                          "default-tool")
             return False
         system.notify(self, f"{takeover.tool_name} restored",
                       "The original screenshot shortcuts are back.", "default-tool")
@@ -349,6 +353,8 @@ class GlintApp(Adw.Application):
             "restore-recently-closed": self.restore_recently_closed,
             "history": self.show_history,
             "open-folder": lambda: self._open_folder(),
+            "open-recordings-folder": lambda: self._open_folder(self.config.video_dir()),
+            "show-log": self._show_log,
             "set-default": self.set_default_tool,
             "unset-default": self.unset_default_tool,
             "preferences": self.show_preferences,
@@ -643,7 +649,9 @@ class GlintApp(Adw.Application):
                              duration=info.get("duration"), poster=poster)
             card = None
             if poster is None:
-                system.notify(self, "Recording saved", os.path.basename(path))
+                system.notify(self, "Recording saved",
+                              f"Saved as {os.path.basename(path)} in {system.display_dir(path)}.", "recording",
+                              buttons=[("Open Recordings Folder", "open-recordings-folder")])
             else:
                 card = self.qa.add(CaptureItem(poster, kind="video", rect=rect, saved=True, video=path))
             if self.config.get("recording.open_trimmer"):
@@ -694,8 +702,13 @@ class GlintApp(Adw.Application):
                     card.refresh()
             self.open_annotate(item.path, on_saved=saved)
         if not card and not cfg.get("after_capture.annotate"):
-            what = "saved to " + os.path.basename(item.path) if item.saved else "copied"
-            system.notify(self, "Screenshot captured", what.capitalize(), "capture")
+            copied = cfg.get("after_capture.copy")
+            if item.saved:
+                body = f"Saved as {os.path.basename(item.path)} in {system.display_dir(item.path)}"
+                body += " and copied to the clipboard." if copied else "."
+            else:
+                body = ("Copied to the clipboard. " if copied else "") + "Find it any time in Capture History."
+            system.notify(self, "Screenshot captured", body, "capture", buttons=[("Capture History", "history")])
 
     def save_capture_file(self, src, kind="Screenshot"):
         cfg = self.config
@@ -754,7 +767,7 @@ class GlintApp(Adw.Application):
             self._choose_image("Open Image to Annotate", lambda p: self.open_annotate(p))
             return
         if not os.path.exists(path):
-            self._error("File not found", path)
+            self._error("Can't open image", f"{path} no longer exists. It may have been moved or deleted.")
             return
         from .annotate.editor import AnnotateWindow
         win = AnnotateWindow(self, path, on_saved=on_saved)
@@ -788,10 +801,10 @@ class GlintApp(Adw.Application):
             self._choose_video(lambda p: self.open_trimmer(p))
             return
         if not os.path.exists(path):
-            self._error("File not found", path)
+            self._error("Can't open video", f"{path} no longer exists. It may have been moved or deleted.")
             return
         if not system.have("ffmpeg"):
-            self._error("Trimming needs ffmpeg", "Install it with: sudo dnf install ffmpeg-free")
+            self._error("Can't trim videos: ffmpeg is missing", "Install it with: sudo dnf install ffmpeg-free")
             return
         from .trimmer import TrimWindow
         TrimWindow(self, path, on_saved=on_saved).present()
@@ -801,7 +814,7 @@ class GlintApp(Adw.Application):
             if path:
                 self.open_annotate(path)
             else:
-                self._error("No image on the clipboard")
+                self._error("No image on the clipboard", "Copy an image first, then try again.")
         system.read_clipboard_image(got)
 
     def pin_file(self, path=None, rect=None):
@@ -814,7 +827,7 @@ class GlintApp(Adw.Application):
 
     def ocr_file(self, path):
         if not system.have("tesseract"):
-            self._error("Text recognition needs Tesseract", "Install it with: sudo dnf install tesseract")
+            self._error("Can't read text: Tesseract is missing", "Install it with: sudo dnf install tesseract")
             return
 
         def done(ok, out, err):
@@ -822,11 +835,13 @@ class GlintApp(Adw.Application):
             if not ok:
                 self._error("Text recognition failed", err.strip()[:200])
             elif not text:
-                system.notify(self, "No text found", "Glint couldn't find any text in the selection.", "ocr")
+                system.notify(self, "No text found",
+                              "Glint couldn't read any text in that area. Try selecting a larger or sharper area.",
+                              "ocr")
             else:
                 system.copy_text(text)
                 preview = text if len(text) < 120 else text[:117] + "…"
-                system.notify(self, "Text copied", preview, "ocr")
+                system.notify(self, "Text copied to the clipboard", preview, "ocr")
 
         system.run_capture(["tesseract", path, "stdout", "--psm", "6"], done)
 
@@ -858,11 +873,20 @@ class GlintApp(Adw.Application):
 
     def restore_recently_closed(self):
         if not self.qa.restore_last():
-            system.notify(self, "Nothing to restore", "No recently closed captures.", "restore")
+            has_history = self.history.enabled and self.history.entries
+            system.notify(self, "No closed captures to restore",
+                          "Only captures closed from the thumbnail pop-up since Glint started can be restored."
+                          + (" Older captures are in Capture History." if has_history else ""),
+                          "restore", buttons=[("Open Capture History", "history")] if has_history else ())
 
-    def _open_folder(self):
-        os.makedirs(self.config.save_dir(), exist_ok=True)
-        system.open_path(self.config.save_dir())
+    def _open_folder(self, path=None):
+        path = path or self.config.save_dir()
+        os.makedirs(path, exist_ok=True)
+        system.open_path(path)
+
+    def _show_log(self):
+        from .log import log_path
+        system.reveal_in_folder(log_path())
 
     def show_preferences(self):
         from .prefs import PreferencesDialog
@@ -890,7 +914,7 @@ class GlintApp(Adw.Application):
 
     def _error(self, title, detail=None):
         print(f"glint: {title}: {detail or ''}", file=sys.stderr)
-        system.notify(self, title, detail or "", "error")
+        system.notify(self, title, detail or "", "error", buttons=[("Show Log", "show-log")])
 
 
 def main(argv=None):
@@ -905,6 +929,9 @@ def main(argv=None):
         return 0
     if len(argv) == 2 and argv[1] in ("set-default", "unset-default") and not _service_running():
         return _default_tool_cli(argv[1])
+    # Notification servers show this as the sender; unset, GLib reports the
+    # script name ("__main__.py").
+    GLib.set_application_name(APP_NAME)
     app = GlintApp()
     return app.run(argv)
 

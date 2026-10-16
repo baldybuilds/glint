@@ -163,3 +163,23 @@ class ClickHighlighterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EncoderQualityTests(unittest.TestCase):
+    def encoder(self, available, quality):
+        from unittest import mock
+        from glint import recorder
+        with mock.patch.object(recorder, "_have_element", lambda name: name in available):
+            return recorder.video_encoder(30, quality, (1920, 1080))
+
+    def test_x264_quantizer_follows_quality(self):
+        self.assertIn("quantizer=16", self.encoder({"x264enc"}, "high"))
+        self.assertIn("quantizer=21", self.encoder({"x264enc"}, "standard"))
+        self.assertIn("quantizer=27", self.encoder({"x264enc"}, "small"))
+        self.assertIn("quantizer=21", self.encoder({"x264enc"}, "bogus"))
+
+    def test_openh264_bitrate_follows_quality(self):
+        high = self.encoder({"openh264enc"}, "high")
+        small = self.encoder({"openh264enc"}, "small")
+        rate = lambda desc: int(desc.split("bitrate=")[1])  # noqa: E731
+        self.assertGreater(rate(high), rate(small))

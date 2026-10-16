@@ -49,6 +49,7 @@ A CleanShot X–inspired screenshot and screen‑recording tool for Fedora and K
 ### 🎬 Record your screen
 - Record any area, window or display to **MP4** or **GIF**
 - Optional **microphone** and **system audio**
+- **Do Not Disturb** while recording and a **quality** setting
 - **Click highlighting** — rings wherever you click
 - Built-in **trimmer** with filmstrip timeline and frame-accurate export
 - Convert to GIF, downscale to 1080p / 720p / 480p, strip audio
@@ -292,7 +293,7 @@ glint record-screen format=gif          # run again to stop
 glint open-annotate image.png | pin image.png | open-from-clipboard
 glint trim-video recording.mp4
 glint set-default | unset-default       # take over / give back Print Screen
-glint history | restore-recently-closed | preferences | quit
+glint history | restore-recently-closed | open-folder | open-recordings-folder | show-log | preferences | quit
 glint --help
 ```
 
