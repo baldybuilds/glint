@@ -15,6 +15,7 @@ A CleanShot X–inspired screenshot and screen‑recording tool for Fedora and K
 [![Python](https://img.shields.io/badge/Python-3-3776AB?logo=python&logoColor=white)](#%EF%B8%8F-development)
 [![License: MIT](https://img.shields.io/badge/License-MIT-22C55E)](LICENSE)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-F97316)](#-what-to-expect)
+[![Copr build](https://copr.fedorainfracloud.org/coprs/baldybuilds/glint/package/glint/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/baldybuilds/glint/)
 [![Latest release](https://img.shields.io/github/v/release/baldybuilds/glint?include_prereleases&logo=github&label=release)](https://github.com/baldybuilds/glint/releases/latest)
 [![GitHub stars](https://img.shields.io/github/stars/baldybuilds/glint?style=flat&logo=github)](https://github.com/baldybuilds/glint/stargazers)
 
@@ -126,7 +127,16 @@ Glint is an **early alpha** built for and tested on **Fedora 45 with KDE Plasma 
 
 ## 📦 Installation
 
-### Option 1 — Download the RPM *(easiest)*
+### Option 1 — Copr repository *(recommended)*
+
+```sh
+sudo dnf copr enable baldybuilds/glint
+sudo dnf install glint
+```
+
+Updates arrive with your normal `sudo dnf upgrade`. Builds are available for Fedora 44 and 45 on x86_64 and aarch64.
+
+### Option 2 — Download the RPM
 
 Grab **`glint-<version>.noarch.rpm`** from the [latest release](https://github.com/baldybuilds/glint/releases/latest), then:
 
@@ -136,7 +146,7 @@ sudo dnf install ./glint-*.noarch.rpm
 
 It installs system-wide, shows up in the app menu and Discover, and pulls in its dependencies. To upgrade, download the newer RPM and run the same command.
 
-### Option 2 — Build the RPM yourself
+### Option 3 — Build the RPM yourself
 
 ```sh
 git clone https://github.com/baldybuilds/glint.git
@@ -147,7 +157,7 @@ sudo dnf install packaging/rpmbuild/RPMS/noarch/glint-*.noarch.rpm
 
 Building needs `rpm-build`, `desktop-file-utils` and `appstream` (`sudo dnf install rpm-build desktop-file-utils appstream`). To upgrade, pull, rebuild and run the same `dnf install` again.
 
-### Option 3 — Per-user install *(no root)*
+### Option 4 — Per-user install *(no root)*
 
 ```sh
 git clone https://github.com/baldybuilds/glint.git
@@ -157,7 +167,7 @@ cd glint
 
 Don't mix the two: a `~/.local` install shadows the RPM. Remove it with `./install.sh --uninstall` first.
 
-### Option 4 — Run from the source tree
+### Option 5 — Run from the source tree
 
 ```sh
 ./bin/glint --background
@@ -400,7 +410,7 @@ tests/                unit tests
 ## 🗺️ Roadmap
 
 - [x] GitHub Releases with ready-to-install RPMs
-- [ ] Copr repository for one-line installs and automatic updates
+- [x] Copr repository for one-line installs and automatic updates
 - [ ] Verified GNOME support
 - [ ] Keystroke overlay for recordings
 - [ ] Cloud / custom-server upload

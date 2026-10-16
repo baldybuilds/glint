@@ -151,6 +151,7 @@ monitors"), then a blank line and any detail.
    git tag v0.3.0 && git push origin main v0.3.0
    ```
    The **Release** workflow builds the RPM in Fedora, runs the tests and publishes the GitHub Release with the RPMs and `SHA256SUMS` attached. It refuses to publish if the tag doesn't match `VERSION`.
+5. If the repository has a `COPR_CONFIG` secret (the contents of `~/.config/copr`), the same workflow also builds the tag in the [Copr repo](https://copr.fedorainfracloud.org/coprs/baldybuilds/glint/). Copr API tokens expire after about 6 months; refresh the secret from https://copr.fedorainfracloud.org/api/. Without the secret, build by hand with `copr-cli build-package baldybuilds/glint --name glint`.
 
 ## Be kind
 
