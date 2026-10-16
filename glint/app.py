@@ -10,7 +10,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
-from . import APP_ID, APP_NAME, URL_SCHEME, VERSION, capture, kwin, naming, paths, system  # noqa: E402
+from . import APP_ID, APP_NAME, LEGACY_APP_ID, URL_SCHEME, VERSION, capture, kwin, naming, paths, system  # noqa: E402
 from .config import Config  # noqa: E402
 from .overlay import OverlayController  # noqa: E402
 from .quickaccess import CaptureItem, QuickAccessManager  # noqa: E402
@@ -48,6 +48,8 @@ instance (it starts if needed). Commands:
 Options:
   --background   start without doing anything (for autostart)
   --version      print the version
+
+Log file (attach it to bug reports): ~/.cache/glint/glint.log
 """
 
 
@@ -133,7 +135,10 @@ class GlintApp(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
+        from . import log
+        log.start()   # only the long-running primary instance gets here
         self.config = Config()
+        self._migrate_app_id()
         display = Gdk.Display.get_default()
         Gtk.IconTheme.get_for_display(display).add_search_path(paths.icons_dir())
         css = Gtk.CssProvider()
@@ -166,11 +171,27 @@ class GlintApp(Adw.Application):
         if not os.environ.get("GLINT_NO_SHORTCUTS"):
             GLib.timeout_add_seconds(2, self._offer_default_tool)
 
+    def _migrate_app_id(self):
+        """One-time clean-up after the 0.3.0 app ID rename (shortcuts are
+        migrated separately, once KDE has registered the new component)."""
+        if self.config.get("state.app_id") == APP_ID:
+            return
+        from .prefs import set_autostart
+        legacy_autostart = os.path.join(GLib.get_user_config_dir(), "autostart", f"{LEGACY_APP_ID}.desktop")
+        if os.path.exists(legacy_autostart):
+            os.remove(legacy_autostart)
+            set_autostart(True)
+        # Screen-sharing permission was granted to the old ID; ask again (with
+        # the explanation) rather than surprising the user with KDE's dialog.
+        self.config.set("recording.restore_token", "")
+        self.config.set("state.app_id", APP_ID)
+
     def _setup_shortcuts(self):
         """KDE: shortcuts come from our .desktop file via KGlobalAccel (like
         Spectacle). Elsewhere: the XDG GlobalShortcuts portal."""
         from .shortcuts import SHORTCUTS, GlobalShortcuts
-        from .takeover import GLINT, KGlobalAccel, remove_stray_portal_shortcuts, restore_default_keys
+        from .takeover import (GLINT, KGlobalAccel, migrate_legacy_component, remove_stray_portal_shortcuts,
+                               restore_default_keys)
 
         kga = KGlobalAccel()
         self.kde_shortcuts = kga.available()
@@ -180,15 +201,23 @@ class GlintApp(Adw.Application):
             if removed:
                 print(f"glint: removed {len(removed)} stale portal shortcuts from "
                       f"{', '.join(sorted({c for c, _a in removed}))}")
+
+            def settle():
+                moved = migrate_legacy_component(kga)
+                if moved:
+                    print(f"glint: moved shortcuts from the pre-0.3.0 app ID: {', '.join(moved)}")
+                if not self.config.get("state.takeover"):
+                    fixed = restore_default_keys(kga)
+                    if fixed:
+                        print(f"glint: restored default shortcuts for {', '.join(fixed)}")
+                return False
+
             if not kga.has_component(GLINT):
-                # Freshly installed: ask KDE to rescan desktop files so our
-                # X-KDE-Shortcuts register without a re-login.
-                system.spawn(["kbuildsycoca6"], on_exit=lambda _ok: GLib.timeout_add_seconds(
-                    2, lambda: restore_default_keys(kga) and False))
-            elif not self.config.get("state.takeover"):
-                fixed = restore_default_keys(kga)
-                if fixed:
-                    print(f"glint: restored default shortcuts for {', '.join(fixed)}")
+                # Freshly installed (or renamed): ask KDE to rescan desktop
+                # files so our X-KDE-Shortcuts register without a re-login.
+                system.spawn(["kbuildsycoca6"], on_exit=lambda _ok: GLib.timeout_add_seconds(2, settle))
+            else:
+                settle()
             return
         self.shortcuts = GlobalShortcuts(self.run_command)
         if not os.environ.get("GLINT_NO_SHORTCUTS"):

@@ -4,8 +4,9 @@ import tempfile
 import unittest
 
 from glint.config import Config
-from glint.takeover import (GLINT, SPECTACLE, GnomeTakeover, KDETakeover, key_to_string, parse_key,
-                            remove_stray_portal_shortcuts, restore_default_keys)
+from glint.takeover import (GLINT, LEGACY_GLINT, SPECTACLE, GnomeTakeover, KDETakeover, LegacyShortcutStore,
+                            key_to_string, migrate_legacy_component, parse_key, remove_stray_portal_shortcuts,
+                            restore_default_keys)
 
 PRINT = 0x01000009
 META, SHIFT, CTRL, ALT = 0x10000000, 0x02000000, 0x04000000, 0x08000000
@@ -158,6 +159,105 @@ class KDETakeoverTests(unittest.TestCase):
         self.kga.defaults[(GLINT, "CaptureArea")] = [CTRL | SHIFT | ord("T")]   # Konsole's
         self.assertEqual(restore_default_keys(self.kga), [])
         self.assertEqual(self.kga.components[GLINT]["CaptureArea"], [])
+
+
+class FakeLegacy:
+    def __init__(self, saved=None):
+        self.saved = dict(saved or {})
+        self.cleared = []
+
+    def read(self):
+        return dict(self.saved)
+
+    def clear(self, actions):
+        self.cleared += actions
+        for a in actions:
+            self.saved.pop(a, None)
+
+
+class LegacyMigrationTests(unittest.TestCase):
+    """0.3.0 renamed the app ID; keys must move from the old component."""
+
+    def setUp(self):
+        self.kga = FakeKGA()
+        # Old component holds the user's keys, including a Print takeover…
+        self.kga.components[LEGACY_GLINT] = {
+            "CaptureArea": [META | SHIFT | ord("4"), PRINT],
+            "CaptureFullscreen": [SHIFT | PRINT],
+            "RecordScreen": [],
+            "_launch": [],
+        }
+        # …so the freshly registered new component got nothing.
+        self.kga.components[GLINT] = {a: [] for a in ("CaptureArea", "CaptureFullscreen", "RecordScreen",
+                                                      "CaptureWindow", "_launch")}
+        self.kga.components[SPECTACLE] = {a: [] for a in spectacle_defaults()}
+
+    def test_keys_move_to_new_component(self):
+        moved = migrate_legacy_component(self.kga, store=FakeLegacy())
+        self.assertEqual(sorted(moved), ["CaptureArea", "CaptureFullscreen"])
+        self.assertEqual(self.kga.components[GLINT]["CaptureArea"], [META | SHIFT | ord("4"), PRINT])
+        self.assertEqual(self.kga.components[GLINT]["CaptureFullscreen"], [SHIFT | PRINT])
+        self.assertEqual(self.kga.components[LEGACY_GLINT], {})
+
+    def test_waits_for_new_component(self):
+        del self.kga.components[GLINT]
+        self.assertIsNone(migrate_legacy_component(self.kga, store=FakeLegacy()))
+        self.assertIn(PRINT, self.kga.components[LEGACY_GLINT]["CaptureArea"])   # untouched
+
+    def test_nothing_to_migrate(self):
+        del self.kga.components[LEGACY_GLINT]
+        self.assertEqual(migrate_legacy_component(self.kga, store=FakeLegacy()), [])
+
+    def test_component_already_dropped_uses_saved_section(self):
+        # What really happens on an RPM upgrade: the old .desktop file is gone,
+        # so KDE no longer lists the component; only kglobalshortcutsrc has it.
+        del self.kga.components[LEGACY_GLINT]
+        self.kga.components[GLINT].update({"CaptureArea": [META | SHIFT | ord("4")],
+                                           "CaptureFullscreen": [META | SHIFT | ord("3")]})
+        F11 = parse_key("F11")
+        store = FakeLegacy({"CaptureArea": [F11, META | SHIFT | ord("4")],
+                            "CaptureFullscreen": [SHIFT | PRINT, META | SHIFT | ord("3")]})
+        moved = migrate_legacy_component(self.kga, store=store)
+        self.assertEqual(sorted(moved), ["CaptureArea", "CaptureFullscreen"])
+        self.assertEqual(self.kga.components[GLINT]["CaptureArea"], [META | SHIFT | ord("4"), F11])
+        self.assertIn(SHIFT | PRINT, self.kga.components[GLINT]["CaptureFullscreen"])
+        self.assertEqual(sorted(store.cleared), ["CaptureArea", "CaptureFullscreen"])
+        self.assertEqual(migrate_legacy_component(self.kga, store=store), [])   # runs once
+
+    def test_saved_keys_owned_elsewhere_are_not_stolen(self):
+        del self.kga.components[LEGACY_GLINT]
+        self.kga.components["org.kde.konsole"] = {"NewTab": [parse_key("F11")]}
+        store = FakeLegacy({"CaptureArea": [parse_key("F11")]})
+        self.assertEqual(migrate_legacy_component(self.kga, store=store), [])
+        self.assertEqual(self.kga.components[GLINT]["CaptureArea"], [])
+
+    def test_saved_section_parser(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "kglobalshortcutsrc")
+            with open(path, "w") as fh:
+                fh.write("[kwin]\nExpose=Ctrl+F9\n\n"
+                         "[services][app.glint.Glint.desktop]\n"
+                         "CaptureArea=F11\\tMeta+Shift+4\n"
+                         "CaptureWindow=Meta+Print\\tMeta+Shift+5\\tMeta+Ctrl+Print\n"
+                         "_launch=none\n\n"
+                         "[services][org.kde.spectacle.desktop]\n_launch=none\n")
+            saved = LegacyShortcutStore(path).read()
+        self.assertEqual(saved["CaptureArea"], [parse_key("F11"), META | SHIFT | ord("4")])
+        self.assertEqual(saved["CaptureWindow"], [META | PRINT, META | SHIFT | ord("5"), META | CTRL | PRINT])
+        self.assertEqual(saved["_launch"], [])
+        self.assertEqual(set(saved), {"CaptureArea", "CaptureWindow", "_launch"})
+
+    def test_takeover_restore_works_after_migration(self):
+        cfg_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(cfg_dir.cleanup)
+        cfg = Config(os.path.join(cfg_dir.name, "config.json"))
+        # Backup recorded by a 0.2.x takeover (same action names).
+        cfg.set("state.takeover", {"desktop": "kde", "spectacle": {"_launch": [PRINT]},
+                                   "glint": {"CaptureArea": [META | SHIFT | ord("4")]}})
+        migrate_legacy_component(self.kga, store=FakeLegacy())
+        KDETakeover(cfg, self.kga).restore()
+        self.assertEqual(self.kga.components[SPECTACLE]["_launch"], [PRINT])
+        self.assertEqual(self.kga.components[GLINT]["CaptureArea"], [META | SHIFT | ord("4")])
 
 
 class FakeStore:

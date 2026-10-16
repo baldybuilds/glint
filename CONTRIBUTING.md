@@ -144,7 +144,7 @@ monitors"), then a blank line and any detail.
 ## Releasing (maintainers)
 
 1. Bump `VERSION` in `glint/__init__.py` and the fallback `glint_version` in `packaging/glint.spec`.
-2. Add a `<release>` entry to `data/app.glint.Glint.metainfo.xml` and a `%changelog` entry to the spec.
+2. Add a `<release>` entry to `data/io.github.baldybuilds.Glint.metainfo.xml` and a `%changelog` entry to the spec.
 3. Add the version's section to `CHANGELOG.md`; it becomes the release notes.
 4. Commit, then tag and push:
    ```sh

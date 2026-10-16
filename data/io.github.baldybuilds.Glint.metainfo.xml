@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>app.glint.Glint</id>
+  <id>io.github.baldybuilds.Glint</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Glint</name>
@@ -26,7 +26,36 @@
       <li>Record the screen as MP4 or GIF with click highlighting, then trim it</li>
     </ul>
   </description>
-  <launchable type="desktop-id">app.glint.Glint.desktop</launchable>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Annotate and frame screenshots: blur secrets, number steps, add arrows and backgrounds</caption>
+      <image type="source">https://raw.githubusercontent.com/baldybuilds/glint/main/docs/images/hero.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Area capture with magnifier, pixel colour and live size</caption>
+      <image type="source">https://raw.githubusercontent.com/baldybuilds/glint/main/docs/images/capture.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The annotation editor: every tool one keypress away</caption>
+      <image type="source">https://raw.githubusercontent.com/baldybuilds/glint/main/docs/images/annotate.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Trim recordings and export MP4 or GIF</caption>
+      <image type="source">https://raw.githubusercontent.com/baldybuilds/glint/main/docs/images/trim.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Quick Access Overlay: copy, save, annotate, pin or drag captures</caption>
+      <image type="source">https://raw.githubusercontent.com/baldybuilds/glint/main/docs/images/quick-access.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Make Glint your Print Screen tool</caption>
+      <image type="source">https://raw.githubusercontent.com/baldybuilds/glint/main/docs/images/preferences.png</image>
+    </screenshot>
+  </screenshots>
+  <launchable type="desktop-id">io.github.baldybuilds.Glint.desktop</launchable>
+  <replaces>
+    <id>app.glint.Glint</id>
+  </replaces>
   <provides>
     <binary>glint</binary>
   </provides>
@@ -45,6 +74,13 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.0" date="2026-10-16">
+      <description>
+        <p>New app ID (io.github.baldybuilds.Glint) with automatic migration of your
+        shortcuts and settings, a log file for bug reports, and screenshots in
+        software centres.</p>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-10-15">
       <description>
         <p>Fixes screen recording and GIFs failing with "Recording pipeline failed to start".</p>

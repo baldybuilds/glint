@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in Glint doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Glint talks to a lot of desktop plumbing (KWin, portals, PipeWire, GStreamer), so the details below really help.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: "1. Pressed Print\n2. Selected an area\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Glint version
+      description: "Output of `glint --version`"
+      placeholder: Glint 0.3.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install Glint?
+      options:
+        - Copr (dnf copr enable baldybuilds/glint)
+        - RPM from GitHub Releases
+        - Built the RPM myself
+        - install.sh (per-user)
+        - Running from the source tree
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: |
+        Paste the output of this command (it only prints versions and your GPU's name):
+        `cat /etc/fedora-release; echo $XDG_CURRENT_DESKTOP $XDG_SESSION_TYPE; plasmashell --version 2>/dev/null; lspci | grep -iE 'vga|3d'`
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: monitors
+    attributes:
+      label: Monitors and scaling
+      placeholder: "2 monitors: 1440p at 100% + 4K at 150%"
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        Attach or paste `~/.cache/glint/glint.log` (Preferences → General → Troubleshooting → Show). For more detail, run `glint quit; GLINT_DEBUG=1 glint --background`, reproduce, then attach the log. Check it for file names you'd rather not share.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or anything else

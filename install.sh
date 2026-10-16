@@ -6,12 +6,18 @@
 #   PREFIX=/opt/glint ./install.sh
 set -eu
 
-APP_ID=app.glint.Glint
+APP_ID=io.github.baldybuilds.Glint
+LEGACY_APP_ID=app.glint.Glint   # before 0.3.0
 PREFIX="${PREFIX:-$HOME/.local}"
 SRC=$(dirname "$(readlink -f "$0")")
 DEST="$PREFIX/share/glint"
 APPS="$PREFIX/share/applications"
 ICONS="$PREFIX/share/icons/hicolor/scalable"
+
+remove_legacy() {
+    rm -f "$APPS/$LEGACY_APP_ID.desktop" "$PREFIX/share/kglobalaccel/$LEGACY_APP_ID.desktop" \
+          "$ICONS/apps/$LEGACY_APP_ID.svg" "$ICONS/apps/$LEGACY_APP_ID-tray-symbolic.svg"
+}
 
 refresh() {
     command -v update-desktop-database >/dev/null && update-desktop-database -q "$APPS" || true
@@ -28,6 +34,7 @@ if [ "${1:-}" = "--uninstall" ]; then
     rm -f "$PREFIX/bin/glint" "$APPS/$APP_ID.desktop" "$PREFIX/share/kglobalaccel/$APP_ID.desktop" \
           "$ICONS/apps/$APP_ID.svg" "$ICONS/apps/$APP_ID-tray-symbolic.svg" \
           "$HOME/.config/autostart/$APP_ID.desktop"
+    remove_legacy
     refresh
     echo "Glint removed. Settings remain in ~/.config/glint."
     exit 0
@@ -53,6 +60,7 @@ find "$DEST" -name __pycache__ -type d -prune -exec rm -rf {} +
 chmod +x "$DEST/bin/glint"
 ln -sf "$DEST/bin/glint" "$PREFIX/bin/glint"
 
+remove_legacy
 install -m644 "$SRC/data/$APP_ID.desktop" "$APPS/$APP_ID.desktop"
 mkdir -p "$PREFIX/share/kglobalaccel"
 ln -sf "$APPS/$APP_ID.desktop" "$PREFIX/share/kglobalaccel/$APP_ID.desktop"

@@ -1,5 +1,5 @@
 # Build with packaging/build-rpm.sh (it passes glint_version from glint/__init__.py).
-%{!?glint_version: %global glint_version 0.2.1}
+%{!?glint_version: %global glint_version 0.3.0}
 
 Name:           glint
 Version:        %{glint_version}
@@ -27,8 +27,8 @@ BuildRequires:  graphene
 # build roots like Copr's mock don't get it otherwise).
 BuildRequires:  gobject-introspection
 # Text-rendering tests need real fonts in minimal build roots (mock/Copr).
-BuildRequires:  dejavu-sans-fonts
-BuildRequires:  dejavu-sans-mono-fonts
+BuildRequires:  (dejavu-sans-fonts or google-noto-sans-fonts)
+BuildRequires:  (dejavu-sans-mono-fonts or google-noto-sans-mono-fonts)
 
 Requires:       python3
 Requires:       python3-gobject >= 3.50
@@ -75,27 +75,27 @@ trimmer.
 install -d %{buildroot}%{_datadir}/%{name}
 cp -a glint data bin %{buildroot}%{_datadir}/%{name}/
 find %{buildroot}%{_datadir}/%{name} -name __pycache__ -type d -prune -exec rm -rf {} +
-rm %{buildroot}%{_datadir}/%{name}/data/app.glint.Glint.desktop \
-   %{buildroot}%{_datadir}/%{name}/data/app.glint.Glint.metainfo.xml
+rm %{buildroot}%{_datadir}/%{name}/data/io.github.baldybuilds.Glint.desktop \
+   %{buildroot}%{_datadir}/%{name}/data/io.github.baldybuilds.Glint.metainfo.xml
 chmod 0755 %{buildroot}%{_datadir}/%{name}/bin/glint
 %{python3} -m compileall -q -d %{_datadir}/%{name}/glint %{buildroot}%{_datadir}/%{name}/glint
 
 install -d %{buildroot}%{_bindir}
 ln -s ../share/%{name}/bin/glint %{buildroot}%{_bindir}/glint
 
-desktop-file-install --dir=%{buildroot}%{_datadir}/applications data/app.glint.Glint.desktop
+desktop-file-install --dir=%{buildroot}%{_datadir}/applications data/io.github.baldybuilds.Glint.desktop
 # Plasma registers the desktop file's X-KDE-Shortcuts from share/kglobalaccel
 # (the same mechanism Spectacle uses).
 install -d %{buildroot}%{_datadir}/kglobalaccel
-ln -s ../applications/app.glint.Glint.desktop %{buildroot}%{_datadir}/kglobalaccel/app.glint.Glint.desktop
+ln -s ../applications/io.github.baldybuilds.Glint.desktop %{buildroot}%{_datadir}/kglobalaccel/io.github.baldybuilds.Glint.desktop
 install -Dpm 0644 -t %{buildroot}%{_datadir}/icons/hicolor/scalable/apps \
-    data/icons/hicolor/scalable/apps/app.glint.Glint.svg \
-    data/icons/hicolor/scalable/apps/app.glint.Glint-tray-symbolic.svg
-install -Dpm 0644 data/app.glint.Glint.metainfo.xml %{buildroot}%{_metainfodir}/app.glint.Glint.metainfo.xml
+    data/icons/hicolor/scalable/apps/io.github.baldybuilds.Glint.svg \
+    data/icons/hicolor/scalable/apps/io.github.baldybuilds.Glint-tray-symbolic.svg
+install -Dpm 0644 data/io.github.baldybuilds.Glint.metainfo.xml %{buildroot}%{_metainfodir}/io.github.baldybuilds.Glint.metainfo.xml
 
 %check
-desktop-file-validate %{buildroot}%{_datadir}/applications/app.glint.Glint.desktop
-appstreamcli validate --no-net %{buildroot}%{_metainfodir}/app.glint.Glint.metainfo.xml
+desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.baldybuilds.Glint.desktop
+appstreamcli validate --no-net %{buildroot}%{_metainfodir}/io.github.baldybuilds.Glint.metainfo.xml
 HOME=$(mktemp -d) PYTHONPATH=%{buildroot}%{_datadir}/%{name} \
     %{python3} -m unittest discover -s tests -t . 2>&1
 
@@ -104,13 +104,19 @@ HOME=$(mktemp -d) PYTHONPATH=%{buildroot}%{_datadir}/%{name} \
 %doc README.md
 %{_bindir}/glint
 %{_datadir}/%{name}/
-%{_datadir}/applications/app.glint.Glint.desktop
-%{_datadir}/kglobalaccel/app.glint.Glint.desktop
-%{_datadir}/icons/hicolor/scalable/apps/app.glint.Glint.svg
-%{_datadir}/icons/hicolor/scalable/apps/app.glint.Glint-tray-symbolic.svg
-%{_metainfodir}/app.glint.Glint.metainfo.xml
+%{_datadir}/applications/io.github.baldybuilds.Glint.desktop
+%{_datadir}/kglobalaccel/io.github.baldybuilds.Glint.desktop
+%{_datadir}/icons/hicolor/scalable/apps/io.github.baldybuilds.Glint.svg
+%{_datadir}/icons/hicolor/scalable/apps/io.github.baldybuilds.Glint-tray-symbolic.svg
+%{_metainfodir}/io.github.baldybuilds.Glint.metainfo.xml
 
 %changelog
+* Fri Oct 16 2026 baldybuilds - 0.3.0-1
+- New app ID io.github.baldybuilds.Glint; shortcuts, Print Screen takeover
+  and autostart migrate automatically from app.glint.Glint
+- Log file at ~/.cache/glint/glint.log, linked from Preferences
+- Screenshots in the AppStream metadata
+
 * Thu Oct 15 2026 baldybuilds - 0.2.1-1
 - Ask for screen-sharing permission before the area selection (once), and
   share one remembered choice between recording and scrolling capture

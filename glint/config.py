@@ -80,7 +80,8 @@ DEFAULTS = {
         "last_area": None,          # [x, y, w, h] in global logical coords
         "self_timer_seconds": 5,
         "shortcuts_bound": False,
-        "click_restore": None,      # KWin effect settings to put back after a crash
+        "click_restore": None,
+        "app_id": None,             # last app ID seen; drives one-time rename migrations      # KWin effect settings to put back after a crash
     },
 }
 

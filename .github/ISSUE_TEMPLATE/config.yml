@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Read the README first
+    url: https://github.com/baldybuilds/glint#-troubleshooting
+    about: Common problems (shortcuts, Print Screen, screen sharing) are covered in Troubleshooting.

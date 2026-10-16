@@ -231,7 +231,7 @@ class Tray:
     # -- D-Bus handlers --------------------------------------------------------
 
     def _icon(self):
-        return "media-record" if self.recording else "app.glint.Glint-tray-symbolic"
+        return "media-record" if self.recording else "io.github.baldybuilds.Glint-tray-symbolic"
 
     def _sni_get(self, _conn, _sender, _path, _iface, prop):
         values = {

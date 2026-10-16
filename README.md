@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="data/icons/hicolor/scalable/apps/app.glint.Glint.svg" width="112" alt="Glint logo">
+<img src="data/icons/hicolor/scalable/apps/io.github.baldybuilds.Glint.svg" width="112" alt="Glint logo">
 
 # Glint
 
@@ -366,9 +366,11 @@ Pick **Allow restoring** (or similar) in the KDE dialog. To reset the remembered
 <details>
 <summary><b>Seeing what's going on</b></summary>
 
+Glint keeps a log at `~/.cache/glint/glint.log` (**Preferences → General → Troubleshooting → Show**). Attach it to bug reports. For more detail:
+
 ```sh
 glint quit
-GLINT_DEBUG=1 glint --background
+GLINT_DEBUG=1 glint --background    # reproduce the problem, then check the log
 ```
 </details>
 

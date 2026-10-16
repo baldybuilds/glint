@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an idea or improvement for Glint
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: Describe the problem or workflow, not just the solution. ("When I record a tutorial I want to…")
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could Glint help?
+      description: Your idea for how it could work. Mockups and examples from other apps are welcome.
+  - type: dropdown
+    id: desktop
+    attributes:
+      label: Desktop you use
+      options:
+        - KDE Plasma (Wayland)
+        - GNOME (Wayland)
+        - Other Wayland compositor
+        - Other

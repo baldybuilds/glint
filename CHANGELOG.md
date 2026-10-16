@@ -3,6 +3,24 @@
 All notable changes to Glint are listed here. Versions follow
 [Semantic Versioning](https://semver.org/); dates are YYYY-MM-DD.
 
+## [0.3.0] - 2026-10-16
+
+### Changed
+- **New app ID: `io.github.baldybuilds.Glint`** (was `app.glint.Glint`, a
+  domain the project doesn't own). Upgrading migrates everything
+  automatically: your shortcuts, including Print Screen if Glint took it
+  over, and "Launch at login". Screen-sharing permission was tied to the old
+  ID, so recording asks for it once more.
+
+### Added
+- A log file at `~/.cache/glint/glint.log` (Preferences → General →
+  Troubleshooting) to attach to bug reports.
+- Screenshots in the app's AppStream metadata, shown by Discover and GNOME
+  Software.
+- Bug report and feature request forms on GitHub.
+- CI: tests, lint and metadata checks run on every push and pull request on
+  Fedora 44 and 45.
+
 ## [0.2.1] - 2026-10-15
 
 ### Changed
@@ -57,6 +75,7 @@ All notable changes to Glint are listed here. Versions follow
   scrolling capture; self-timer; OCR; MP4/GIF recording; tray menu; CLI and
   `glint://` URLs; RPM packaging.
 
+[0.3.0]: https://github.com/baldybuilds/glint/releases/tag/v0.3.0
 [0.2.1]: https://github.com/baldybuilds/glint/releases/tag/v0.2.1
 [0.2.0]: https://github.com/baldybuilds/glint/releases/tag/v0.2.0
 [0.1.0]: https://github.com/baldybuilds/glint/commit/5bcc6cd

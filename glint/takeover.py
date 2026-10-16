@@ -3,19 +3,22 @@
 KDE Plasma: Spectacle owns Print, Meta+Shift+S and friends through KGlobalAccel.
 We back up Spectacle's current keys, clear them, and give the same keys to the
 matching actions of Glint's own KGlobalAccel component (registered from
-app.glint.Glint.desktop like Spectacle's). Restoring reverses both sides.
+io.github.baldybuilds.Glint.desktop like Spectacle's). Restoring reverses both sides.
 Spectacle stays installed: Glint uses it as its capture backend.
 
 GNOME: the Shell's screenshot keybindings are cleared via GSettings and the
 same accelerators are re-created as custom keybindings running `glint …`.
 """
 
+import os
+import subprocess
 from collections import OrderedDict
 
 from gi.repository import Gio, GLib
 
 SPECTACLE = "org.kde.spectacle.desktop"
-GLINT = "app.glint.Glint.desktop"
+GLINT = "io.github.baldybuilds.Glint.desktop"
+LEGACY_GLINT = "app.glint.Glint.desktop"   # component name before 0.3.0
 
 # Glint's desktop actions: (KGlobalAccel action id, CLI command, label)
 GLINT_ACTIONS = [
@@ -300,6 +303,91 @@ def restore_default_keys(kga):
             kga.set_keys(GLINT, info["component_friendly"], action, info["friendly"], free)
             fixed.append(action)
     return fixed
+
+
+class LegacyShortcutStore:
+    """The pre-0.3.0 component's section in ~/.config/kglobalshortcutsrc.
+
+    Once the old .desktop file is removed (e.g. by an RPM upgrade) KDE drops
+    the component from its live registry, but the user's keys stay in this
+    section. It only lists actions whose keys differ from the defaults.
+    """
+
+    GROUP = f"[services][{LEGACY_GLINT}]"
+
+    def __init__(self, path=None):
+        self.path = path or os.path.join(GLib.get_user_config_dir(), "kglobalshortcutsrc")
+
+    def read(self):
+        """{action: [key codes]} from the saved section ({} if absent)."""
+        try:
+            with open(self.path, encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            return {}
+        out, inside = {}, False
+        for line in lines:
+            if line.startswith("["):
+                inside = line.strip() == self.GROUP
+                continue
+            if not inside or "=" not in line:
+                continue
+            action, _, value = line.partition("=")
+            keys = []
+            for text in value.split("\\t"):
+                text = text.strip()
+                if text and text != "none":
+                    try:
+                        keys.append(parse_key(text))
+                    except (KeyError, ValueError):
+                        pass
+            out[action.strip()] = keys
+        return out
+
+    def clear(self, actions):
+        for action in actions:
+            subprocess.run(["kwriteconfig6", "--file", os.path.basename(self.path), "--group", "services",
+                            "--group", LEGACY_GLINT, "--key", action, "--delete"], check=False)
+
+
+def migrate_legacy_component(kga, legacy=LEGACY_GLINT, store=None):
+    """Move shortcuts from the pre-0.3.0 component to the current one.
+
+    The app ID changed in 0.3.0. The user's keys (their customisations, and
+    Print & co. if Glint took over from Spectacle) live either in the old
+    component, if KDE still has it registered, or only in its saved section
+    of kglobalshortcutsrc, if the old .desktop file is already gone. Give
+    them to the same-named new actions, where no one else owns them, then
+    forget the old ones. Nothing is touched until the new component exists.
+
+    Returns the moved actions, or None if the new component isn't there yet.
+    """
+    store = store or LegacyShortcutStore()
+    live = kga.actions(legacy)
+    saved = store.read()
+    old = {a: info["keys"] for a, info in live.items()} if live else {}
+    for action, keys in saved.items():
+        old.setdefault(action, keys)
+    if not old:
+        return []
+    new = kga.actions(GLINT)
+    if not new:
+        return None
+    for action in live:
+        kga.unregister(legacy, action)
+    moved = []
+    for action, keys in old.items():
+        target = new.get(action)
+        if target is None or not keys:
+            continue
+        free = [k for k in keys if k in target["keys"] or not kga.owners(k)]
+        merged = _dedupe(target["keys"] + free)
+        if merged != target["keys"]:
+            kga.set_keys(GLINT, target["component_friendly"], action, target["friendly"], merged)
+            moved.append(action)
+    if saved:
+        store.clear(list(saved))
+    return moved
 
 
 # -- GNOME ---------------------------------------------------------------------------

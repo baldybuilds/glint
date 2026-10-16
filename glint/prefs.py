@@ -131,6 +131,13 @@ class PreferencesDialog(Adw.PreferencesDialog):
             self._switch("Copy to clipboard", "after_capture.copy"),
             self._switch("Open annotate tool", "after_capture.annotate"),
         ])
+        from .log import log_path
+        row = Adw.ActionRow(title="Log file", subtitle=log_path().replace(GLib.get_home_dir(), "~", 1))
+        btn = Gtk.Button(label="Show", valign=Gtk.Align.CENTER)
+        btn.connect("clicked", lambda *_: system.reveal_in_folder(log_path()))
+        row.add_suffix(btn)
+        self._group(page, "Troubleshooting", [row],
+                    "Attach the log file when you report a bug. It may contain file names.")
         return page
 
     def _template_row(self):

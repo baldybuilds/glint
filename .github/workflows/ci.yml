@@ -1,0 +1,46 @@
+# Runs on every push and pull request: unit tests, lint and metadata checks
+# in a Fedora container without weak dependencies (like Copr's build roots).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests and checks (Fedora ${{ matrix.fedora }})
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:${{ matrix.fedora }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ["44", "45"]
+    steps:
+      - name: Install dependencies (no weak deps, like Copr)
+        run: >
+          dnf -y --setopt=install_weak_deps=False install git python3 python3-pip
+          python3-gobject python3-cairo gtk4 libadwaita gstreamer1-plugins-base pango glib2
+          gdk-pixbuf2 graphene gobject-introspection dejavu-sans-fonts dejavu-sans-mono-fonts
+          desktop-file-utils appstream
+
+      - uses: actions/checkout@v4
+
+      - name: Unit tests
+        run: HOME=$(mktemp -d) python3 -m unittest discover -s tests -t . -v
+
+      - name: Lint (undefined / unused names, syntax)
+        run: |
+          python3 -m pip install --quiet ruff==0.6.9
+          python3 -m ruff check --select F,E9 glint tests
+
+      - name: Desktop entry and AppStream metadata
+        run: |
+          desktop-file-validate data/*.desktop
+          appstreamcli validate --no-net data/*.metainfo.xml
+
+      - name: Shell scripts parse
+        run: for f in install.sh bin/glint packaging/*.sh; do sh -n "$f"; done

@@ -20,8 +20,8 @@ from . import APP_ID, paths
 
 KWIN = "org.kde.KWin"
 SCRIPTING_IFACE = "org.kde.kwin.Scripting"
-BRIDGE_PATH = "/app/glint/Glint/KWinBridge"
-BRIDGE_IFACE = "app.glint.KWinBridge"
+BRIDGE_PATH = "/io/github/baldybuilds/Glint/KWinBridge"
+BRIDGE_IFACE = "io.github.baldybuilds.Glint.KWinBridge"
 
 _BRIDGE_XML = f"""
 <node>
